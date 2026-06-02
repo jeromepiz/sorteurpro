@@ -11,29 +11,18 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
   :root {
-    --blue: #1a3a5c;
-    --blue-mid: #2e6da4;
-    --blue-light: #d6e4f0;
-    --green: #155724;
-    --green-bg: #d4edda;
-    --green-border: #c3e6cb;
-    --red: #7d1f1f;
-    --orange: #7d3c00;
-    --orange-bg: #fff8f0;
-    --orange-border: #f0c080;
-    --gray-bg: #f5f5f5;
-    --gray-border: #e0e0e0;
-    --text: #1a1a1a;
-    --text-muted: #666;
-    --radius: 10px;
-    --radius-lg: 14px;
+    --blue: #1a3a5c; --blue-mid: #2e6da4; --blue-light: #d6e4f0;
+    --green: #155724; --green-bg: #d4edda; --green-border: #c3e6cb;
+    --red: #7d1f1f; --orange: #7d3c00; --orange-bg: #fff8f0; --orange-border: #f0c080;
+    --gray-bg: #f5f5f5; --gray-border: #e0e0e0;
+    --text: #1a1a1a; --text-muted: #666;
+    --radius: 10px; --radius-lg: 14px;
   }
 
   html, body { height: 100%; background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--text); }
 
   .app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #f0f2f5; display: flex; flex-direction: column; }
 
-  /* ─── HEADER ─── */
   .app-header {
     background: var(--blue); color: white;
     padding: 14px 16px 12px;
@@ -45,28 +34,23 @@
   .app-header .sub { font-size: 11px; opacity: 0.65; margin-top: 1px; }
   .back-btn { background: none; border: none; color: white; font-size: 22px; padding: 0 6px 0 0; cursor: pointer; opacity: 0.8; line-height: 1; }
 
-  /* ─── SCREENS ─── */
   .screen { display: none; flex: 1; padding: 16px; }
   .screen.active { display: block; }
 
-  /* ─── FORM ─── */
   label { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 5px; margin-top: 14px; }
   input[type=text], select {
     width: 100%; font-size: 16px; border-radius: var(--radius);
     border: 1px solid var(--gray-border); padding: 11px 14px;
-    background: white; color: var(--text); appearance: none;
-    -webkit-appearance: none;
+    background: white; color: var(--text); appearance: none; -webkit-appearance: none;
   }
   input[type=text]:focus, select:focus { outline: none; border-color: var(--blue-mid); }
   textarea {
     width: 100%; font-size: 14px; border-radius: var(--radius);
     border: 1px solid var(--orange-border); padding: 10px 12px;
-    background: white; color: var(--text); min-height: 80px; resize: vertical;
-    font-family: inherit;
+    background: white; color: var(--text); min-height: 80px; resize: vertical; font-family: inherit;
   }
   textarea:focus { outline: none; border-color: var(--red); }
 
-  /* ─── BUTTONS ─── */
   .btn-primary {
     background: var(--blue); color: white; border: none;
     border-radius: var(--radius); padding: 14px;
@@ -76,14 +60,12 @@
   .btn-primary:active { opacity: 0.8; }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* ─── PROGRESS ─── */
   .progress-wrap { margin: 0 0 16px; }
   .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
   .progress-label { font-size: 12px; color: var(--text-muted); }
   .progress-bar { background: var(--gray-bg); border-radius: 99px; height: 7px; overflow: hidden; }
   .progress-fill { background: var(--blue); height: 100%; border-radius: 99px; transition: width 0.4s ease; }
 
-  /* ─── INFO ROW ─── */
   .info-row {
     display: flex; align-items: center; gap: 8px;
     background: white; border: 1px solid var(--gray-border);
@@ -92,10 +74,9 @@
   }
   .info-row .val { font-weight: 600; margin-left: auto; color: var(--text); font-size: 14px; }
 
-  /* ─── ADDRESS CARDS ─── */
   .addr-card {
     background: white; border: 1px solid var(--gray-border);
-    border-radius: var(--radius-lg); padding: 14px 14px;
+    border-radius: var(--radius-lg); padding: 14px;
     margin-bottom: 10px; display: flex; align-items: center; gap: 12px;
     transition: border-color 0.15s, opacity 0.15s;
   }
@@ -109,8 +90,7 @@
     width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     font-size: 13px; font-weight: 700;
-    background: var(--gray-bg); color: var(--text-muted);
-    border: 1px solid var(--gray-border);
+    background: var(--gray-bg); color: var(--text-muted); border: 1px solid var(--gray-border);
   }
   .step-badge.done { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
   .step-badge.active { background: var(--blue); color: white; border-color: var(--blue); }
@@ -122,7 +102,6 @@
   .addr-anomaly { font-size: 11px; color: #8a4a00; margin-top: 3px; font-weight: 500; }
   .addr-icon { font-size: 20px; flex-shrink: 0; }
 
-  /* ─── ACTION SCREEN ─── */
   .action-center { text-align: center; padding: 8px 0; }
   .action-pin { font-size: 44px; margin-bottom: 8px; }
   .action-addr { font-size: 20px; font-weight: 700; color: var(--blue); line-height: 1.25; margin-bottom: 4px; }
@@ -142,7 +121,6 @@
   .btn-ok .blbl, .btn-ko .blbl { font-size: 16px; }
   .btn-ok .bsub, .btn-ko .bsub { font-size: 11px; opacity: 0.75; font-weight: 400; }
 
-  /* ─── ANOMALY PANEL ─── */
   .anomaly-panel {
     display: none; margin-top: 14px;
     background: var(--orange-bg); border: 1px solid var(--orange-border);
@@ -165,13 +143,11 @@
   .btn-confirm-ko {
     background: var(--red); color: white; border: none;
     border-radius: var(--radius); padding: 12px; font-size: 15px;
-    font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px;
-    transition: opacity 0.15s;
+    font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px; transition: opacity 0.15s;
   }
   .btn-confirm-ko:disabled { opacity: 0.35; cursor: not-allowed; }
   .btn-confirm-ko:active { opacity: 0.8; }
 
-  /* ─── FINISH ─── */
   .finish-hero { text-align: center; padding: 16px 0 20px; }
   .finish-icon { font-size: 56px; margin-bottom: 10px; }
   .finish-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
@@ -194,7 +170,6 @@
   .badge-ok { background: var(--green-bg); color: var(--green); }
   .badge-ko { background: #f8d7da; color: #721c24; }
 
-  /* ─── LOADING ─── */
   .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 16px; }
   .spinner { width: 40px; height: 40px; border: 3px solid var(--gray-border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -206,7 +181,6 @@
 <body>
 <div class="app">
 
-  <!-- HEADER (mis à jour par JS) -->
   <div class="app-header" id="app-header">
     <span class="logo">🗑️</span>
     <div>
@@ -215,13 +189,12 @@
     </div>
   </div>
 
-  <!-- ══ ÉCRAN CONNEXION ══ -->
+  <!-- ══ CONNEXION ══ -->
   <div id="screen-login" class="screen active">
     <div class="loading-screen" id="loading-tournees" style="display:none;">
       <div class="spinner"></div>
       <div class="loading-text">Chargement des tournées…</div>
     </div>
-
     <div id="login-form">
       <label>Prénom</label>
       <input type="text" id="inp-prenom" placeholder="Ex : Jean" autocomplete="given-name">
@@ -236,7 +209,7 @@
     </div>
   </div>
 
-  <!-- ══ ÉCRAN LISTE ══ -->
+  <!-- ══ LISTE ══ -->
   <div id="screen-list" class="screen">
     <div class="info-row">
       <span>⏱</span> Début de tournée
@@ -244,7 +217,7 @@
     </div>
     <div class="progress-wrap">
       <div class="progress-header">
-        <span class="progress-label" id="list-section-title">Adresses à traiter</span>
+        <span class="progress-label">Adresses à traiter</span>
         <span class="progress-label" id="list-progress-label">0 / 0</span>
       </div>
       <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
@@ -252,7 +225,7 @@
     <div id="address-list"></div>
   </div>
 
-  <!-- ══ ÉCRAN ACTION ══ -->
+  <!-- ══ ACTION ══ -->
   <div id="screen-action" class="screen">
     <div class="action-center">
       <div class="action-pin">📍</div>
@@ -260,17 +233,14 @@
       <div class="action-sub" id="action-addr-sub"></div>
       <div class="btn-grid">
         <button class="btn-ok" onclick="validateAddr(false)">
-          <span class="bico">✅</span>
-          <span class="blbl">OK</span>
+          <span class="bico">✅</span><span class="blbl">OK</span>
           <span class="bsub">Collecte effectuée</span>
         </button>
         <button class="btn-ko" onclick="toggleAnomalyPanel()">
-          <span class="bico">⚠️</span>
-          <span class="blbl">Anomalie</span>
+          <span class="bico">⚠️</span><span class="blbl">Anomalie</span>
           <span class="bsub">Signaler un problème</span>
         </button>
       </div>
-
       <div class="anomaly-panel" id="anomaly-panel">
         <label>Type d'anomalie *</label>
         <div class="chips" id="anomaly-chips"></div>
@@ -283,7 +253,7 @@
     </div>
   </div>
 
-  <!-- ══ ÉCRAN FIN ══ -->
+  <!-- ══ FIN ══ -->
   <div id="screen-finish" class="screen">
     <div class="finish-hero">
       <div class="finish-icon">🎉</div>
@@ -301,118 +271,90 @@
     <button class="btn-primary" onclick="newTournee()" style="margin-top:20px;">Nouvelle tournée</button>
   </div>
 
-</div><!-- .app -->
+</div>
 
 <script>
-// ═══════════════════════════════════════════
-//  CONFIGURATION
-// ═══════════════════════════════════════════
 const ANOMALY_TYPES = [
-  { id: "bac_absent",       label: "🗑️ Bac non sorti" },
-  { id: "acces_bloque",     label: "🚧 Accès bloqué" },
-  { id: "bac_endommage",    label: "🔨 Bac endommagé" },
-  { id: "bac_plein",        label: "🔴 Bac trop plein" },
-  { id: "mauvais_tri",      label: "♻️ Mauvais tri" },
-  { id: "bac_non_rentre",   label: "↩️ Non rentré (AM)" },
-  { id: "adresse_absente",  label: "❓ Adresse introuvable" },
-  { id: "autre",            label: "📝 Autre" },
+  { id: "bac_absent",      label: "🗑️ Bac non sorti" },
+  { id: "acces_bloque",    label: "🚧 Accès bloqué" },
+  { id: "bac_endommage",   label: "🔨 Bac endommagé" },
+  { id: "bac_plein",       label: "🔴 Bac trop plein" },
+  { id: "mauvais_tri",     label: "♻️ Mauvais tri" },
+  { id: "bac_non_rentre",  label: "↩️ Non rentré (AM)" },
+  { id: "adresse_absente", label: "❓ Adresse introuvable" },
+  { id: "autre",           label: "📝 Autre" },
 ];
 
-// ═══════════════════════════════════════════
-//  ÉTAT
-// ═══════════════════════════════════════════
 let TOURNEES = {};
-let session = {
-  agent: "", tourneeId: "", tourneeData: null,
-  startTime: null, endTime: null, currentIdx: 0, results: []
-};
+let session = { agent: "", tourneeId: "", tourneeData: null, startTime: null, endTime: null, currentIdx: 0, results: [] };
 let selectedAnomalyId = null;
 
-// ═══════════════════════════════════════════
-//  CHARGEMENT DES TOURNÉES DEPUIS LE SERVEUR
-// ═══════════════════════════════════════════
+// ─── CHARGEMENT TOURNÉES ───
 async function loadTournees() {
   document.getElementById('loading-tournees').style.display = 'flex';
   document.getElementById('login-form').style.display = 'none';
-
   try {
     const res = await fetch('/api/tournees');
-    if (!res.ok) throw new Error('Erreur serveur');
+    if (!res.ok) throw new Error();
     TOURNEES = await res.json();
-
     const sel = document.getElementById('sel-tournee');
     sel.innerHTML = '<option value="">— Choisir une tournée —</option>';
     Object.entries(TOURNEES).forEach(([id, t]) => {
       const opt = document.createElement('option');
-      opt.value = id;
-      opt.textContent = t.label || id;
+      opt.value = id; opt.textContent = t.label || id;
       sel.appendChild(opt);
     });
   } catch(e) {
-    // Fallback données d'exemple si le serveur est indisponible
-    TOURNEES = {
-      T1: { label: "Tournée 1 — OM Lundi", addresses: [
-        { name: "36 rue de la Paix", sub: "Résidence Les Acacias — 12 bacs OM" },
-        { name: "12 avenue du Général de Gaulle", sub: "Immeuble Horizon — 8 bacs OM" },
-        { name: "5 boulevard Victor Hugo", sub: "Copropriété Le Cèdre — 6 bacs OM" },
-      ]}
-    };
+    // Données de secours si serveur inaccessible
+    TOURNEES = { DEMO: { label: "Tournée démo", addresses: [
+      { name: "1 rue de l'Exemple", sub: "Résidence Test — 3 bacs OM" },
+      { name: "2 avenue de la Démo", sub: "Immeuble Test — 2 bacs OM" },
+    ]}};
     const sel = document.getElementById('sel-tournee');
     sel.innerHTML = '<option value="">— Choisir une tournée —</option>';
     Object.entries(TOURNEES).forEach(([id, t]) => {
       const opt = document.createElement('option');
-      opt.value = id;
-      opt.textContent = t.label || id;
+      opt.value = id; opt.textContent = t.label || id;
       sel.appendChild(opt);
     });
-    console.warn('Serveur inaccessible, données de démonstration chargées.');
+    console.warn('Serveur inaccessible — mode démo activé.');
   }
-
   document.getElementById('loading-tournees').style.display = 'none';
   document.getElementById('login-form').style.display = 'block';
 }
 
-// ═══════════════════════════════════════════
-//  NAVIGATION
-// ═══════════════════════════════════════════
+// ─── NAVIGATION ───
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  // Remonte en haut de l'écran à chaque changement de vue
+  window.scrollTo({ top: 0 });
 }
 
 function setHeader(title, sub, showBack, backFn) {
   const hdr = document.getElementById('app-header');
   hdr.innerHTML = '';
-
   if (showBack) {
     const btn = document.createElement('button');
-    btn.className = 'back-btn';
-    btn.textContent = '‹';
-    btn.onclick = backFn;
+    btn.className = 'back-btn'; btn.textContent = '‹'; btn.onclick = backFn;
     hdr.appendChild(btn);
   } else {
     const logo = document.createElement('span');
-    logo.className = 'logo';
-    logo.textContent = '🗑️';
+    logo.className = 'logo'; logo.textContent = '🗑️';
     hdr.appendChild(logo);
   }
-
   const div = document.createElement('div');
   div.innerHTML = `<h1>${title}</h1><div class="sub">${sub}</div>`;
   hdr.appendChild(div);
 }
 
-// ═══════════════════════════════════════════
-//  UTILITAIRES
-// ═══════════════════════════════════════════
+// ─── UTILITAIRES ───
 function fmt(dt) {
   if (!dt) return '—';
   return new Date(dt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 function fmtDuree(ms) {
-  const s = Math.floor(ms / 1000);
-  const m = Math.floor(s / 60);
-  const h = Math.floor(m / 60);
+  const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
   if (h > 0) return `${h}h ${m % 60}min`;
   return `${m}min ${s % 60}s`;
 }
@@ -421,24 +363,21 @@ function anomalyLabel(id) {
   return a ? a.label : 'Anomalie';
 }
 
-// ═══════════════════════════════════════════
-//  DÉMARRAGE TOURNÉE
-// ═══════════════════════════════════════════
+// ─── DÉMARRAGE ───
 function startTournee() {
   const prenom = document.getElementById('inp-prenom').value.trim();
   const nom    = document.getElementById('inp-nom').value.trim();
   const tid    = document.getElementById('sel-tournee').value;
   const err    = document.getElementById('login-error');
-
   if (!prenom || !nom || !tid) { err.style.display = 'block'; return; }
   err.style.display = 'none';
 
-  session.agent      = `${prenom} ${nom}`;
-  session.tourneeId  = tid;
+  session.agent       = `${prenom} ${nom}`;
+  session.tourneeId   = tid;
   session.tourneeData = TOURNEES[tid];
-  session.startTime  = new Date();
-  session.currentIdx = 0;
-  session.results    = session.tourneeData.addresses.map(() => null);
+  session.startTime   = new Date();
+  session.currentIdx  = 0;
+  session.results     = session.tourneeData.addresses.map(() => null);
 
   setHeader(session.tourneeData.label, session.agent, false, null);
   document.getElementById('list-start-time').textContent = fmt(session.startTime);
@@ -446,9 +385,7 @@ function startTournee() {
   showScreen('screen-list');
 }
 
-// ═══════════════════════════════════════════
-//  LISTE DES ADRESSES
-// ═══════════════════════════════════════════
+// ─── LISTE DES ADRESSES ───
 function renderList() {
   const addrs = session.tourneeData.addresses;
   const done  = session.results.filter(r => r !== null).length;
@@ -466,15 +403,13 @@ function renderList() {
     const isLocked = i > session.currentIdx && !isDone;
 
     const card = document.createElement('div');
-    card.className = `addr-card${isDone ? ' done' : ''}${isActive ? ' active-card clickable' : ''}${isLocked ? ' locked' : ''}${(!isDone && !isLocked && !isActive) ? '' : ''}`;
+    card.className = `addr-card${isDone ? ' done' : ''}${isActive ? ' active-card clickable' : ''}${isLocked ? ' locked' : ''}`;
     if (isActive) card.onclick = () => openAction(i);
 
-    // Badge numéro
     const badge = document.createElement('div');
     badge.className = `step-badge${isDone ? ' done' : isActive ? ' active' : ''}`;
     badge.textContent = isDone ? '✓' : (i + 1);
 
-    // Info
     const info = document.createElement('div');
     info.className = 'addr-info';
     info.innerHTML = `<div class="addr-name">${addr.name}</div><div class="addr-sub">${addr.sub || ''}</div>`;
@@ -484,17 +419,14 @@ function renderList() {
       timeEl.className = 'addr-time';
       timeEl.textContent = '⏱ ' + fmt(res.timestamp);
       info.appendChild(timeEl);
-
       if (res.anomalie) {
         const anomEl = document.createElement('div');
         anomEl.className = 'addr-anomaly';
-        const lbl = anomalyLabel(res.anomalieType);
-        anomEl.textContent = '⚠️ ' + lbl + (res.commentaire ? ' — ' + res.commentaire : '');
+        anomEl.textContent = '⚠️ ' + anomalyLabel(res.anomalieType) + (res.commentaire ? ' — ' + res.commentaire : '');
         info.appendChild(anomEl);
       }
     }
 
-    // Icône statut
     const icon = document.createElement('div');
     icon.className = 'addr-icon';
     if (isDone && res.anomalie) icon.textContent = '⚠️';
@@ -509,12 +441,18 @@ function renderList() {
     el.appendChild(card);
   });
 
+  // ── Scroll automatique vers la prochaine adresse active ──
+  setTimeout(() => {
+    const activeCard = document.querySelector('.active-card');
+    if (activeCard) {
+      activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 100);
+
   if (done === addrs.length) setTimeout(showFinish, 500);
 }
 
-// ═══════════════════════════════════════════
-//  ÉCRAN ACTION
-// ═══════════════════════════════════════════
+// ─── ÉCRAN ACTION ───
 function openAction(idx) {
   session.currentIdx = idx;
   const addr = session.tourneeData.addresses[idx];
@@ -523,13 +461,15 @@ function openAction(idx) {
     `Adresse ${idx + 1} / ${session.tourneeData.addresses.length}`,
     session.tourneeData.label,
     true,
-    () => { setHeader(session.tourneeData.label, session.agent, false, null); renderList(); showScreen('screen-list'); }
+    () => {
+      setHeader(session.tourneeData.label, session.agent, false, null);
+      renderList();
+      showScreen('screen-list');
+    }
   );
 
   document.getElementById('action-addr-name').textContent = addr.name;
   document.getElementById('action-addr-sub').textContent  = addr.sub || '';
-
-  // Reset panel anomalie
   document.getElementById('anomaly-panel').classList.remove('visible');
   document.getElementById('anomaly-text').value = '';
   buildChips();
@@ -563,9 +503,7 @@ function toggleAnomalyPanel() {
   if (!wasVisible) buildChips();
 }
 
-// ═══════════════════════════════════════════
-//  VALIDATION D'UNE ADRESSE
-// ═══════════════════════════════════════════
+// ─── VALIDATION ───
 function validateAddr(isAnomalie) {
   if (isAnomalie && !selectedAnomalyId) return;
 
@@ -579,7 +517,7 @@ function validateAddr(isAnomalie) {
 
   session.results[session.currentIdx] = result;
 
-  // ── Envoi au serveur (silencieux si réseau absent) ──
+  // Envoi au serveur
   fetch('/api/validation', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -602,15 +540,13 @@ function validateAddr(isAnomalie) {
     session.currentIdx++;
   }
 
-  // Retour à la liste
+  // Retour liste + scroll automatique vers la prochaine adresse
   setHeader(session.tourneeData.label, session.agent, false, null);
-  renderList();
   showScreen('screen-list');
+  renderList();
 }
 
-// ═══════════════════════════════════════════
-//  ÉCRAN FIN DE TOURNÉE
-// ═══════════════════════════════════════════
+// ─── FIN DE TOURNÉE ───
 function showFinish() {
   session.endTime = new Date();
   const addrs     = session.tourneeData.addresses;
@@ -628,7 +564,7 @@ function showFinish() {
   document.getElementById('stat-ok').textContent    = addrs.length - anomalies;
   document.getElementById('stat-ko').textContent    = anomalies;
 
-  // Envoi récapitulatif de fin de tournée
+  // Envoi récap fin de tournée
   fetch('/api/validation', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -645,30 +581,22 @@ function showFinish() {
     })
   }).catch(() => {});
 
-  // Détail
   const detail = document.getElementById('finish-detail');
   detail.innerHTML = '';
   addrs.forEach((addr, i) => {
     const res = session.results[i];
     if (!res) return;
+    const at  = res.anomalie ? anomalyLabel(res.anomalieType) : '';
     const row = document.createElement('div');
     row.className = 'detail-row';
-
-    const lbl = res.anomalie ? anomalyLabel(res.anomalieType) : '';
-    const badge = res.anomalie
-      ? `<span class="badge badge-ko">⚠️ ${lbl}</span>`
-      : `<span class="badge badge-ok">✅ OK</span>`;
-    const comment = res.commentaire
-      ? `<div class="detail-comment">${res.commentaire}</div>` : '';
-
     row.innerHTML = `
       <div class="detail-num">${i + 1}.</div>
       <div class="detail-info">
         <div class="detail-name">${addr.name}</div>
         <div class="detail-time">${fmt(res.timestamp)}</div>
-        ${comment}
+        ${res.commentaire ? `<div class="detail-comment">${res.commentaire}</div>` : ''}
       </div>
-      ${badge}
+      ${res.anomalie ? `<span class="badge badge-ko">⚠️ ${at}</span>` : `<span class="badge badge-ok">✅ OK</span>`}
     `;
     detail.appendChild(row);
   });
@@ -676,18 +604,14 @@ function showFinish() {
   showScreen('screen-finish');
 }
 
-// ═══════════════════════════════════════════
-//  NOUVELLE TOURNÉE
-// ═══════════════════════════════════════════
+// ─── NOUVELLE TOURNÉE ───
 function newTournee() {
   session = { agent: '', tourneeId: '', tourneeData: null, startTime: null, endTime: null, currentIdx: 0, results: [] };
   setHeader('SorteurPro', 'Gestion des tournées', false, null);
   showScreen('screen-login');
 }
 
-// ═══════════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════════
+// ─── INIT ───
 loadTournees();
 </script>
 </body>
