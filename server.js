@@ -2,6 +2,7 @@ const express = require('express');
 const XLSX = require('xlsx');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 app.use(cors());
@@ -9,96 +10,197 @@ app.use(express.json());
 app.use(express.static('.'));
 
 const ONGLETS_A_IGNORER = ['📊 Récapitulatif'];
+const DATA_FILE = path.join(__dirname, 'data.json');
 
-// ─── TOURNÉES : lit le fichier Excel par position de colonne ───
+// ─── PERSISTANCE JSON ───
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  } catch(e) {}
+  return { validations: [], sessions: [] };
+}
+function saveData(data) {
+  try { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); } catch(e) {}
+}
+let db = loadData();
+
+// ─── TOURNÉES ───
 app.get('/api/tournees', (req, res) => {
   try {
-    const filePath = path.join(__dirname, 'tournees_sorteurs.xlsx');
-    const wb = XLSX.readFile(filePath);
+    const wb = XLSX.readFile(path.join(__dirname, 'tournees_sorteurs.xlsx'));
     const tournees = {};
-
     wb.SheetNames.forEach(name => {
       if (ONGLETS_A_IGNORER.includes(name)) return;
-
-      const ws = wb.Sheets[name];
-      // Lit toutes les lignes sans en-tête — chaque ligne = tableau de valeurs
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1 });
       const addresses = [];
       rows.forEach(row => {
-        // Colonne B (index 1) = adresse complète
-        // Colonne C (index 2) = complément / nom résidence
-        // Colonne D (index 3) = nb bacs
-        const adresse    = row[1];
-        const complement = row[2] || '';
-        const nbBacs     = row[3] || '';
-
-        // Ignore les lignes vides
+        const adresse = row[1];
         if (!adresse || typeof adresse !== 'string' || adresse.trim() === '') return;
-        // Ignore la ligne d'en-tête si elle contient le mot "adresse"
         if (adresse.toLowerCase().includes('adresse')) return;
-
         addresses.push({
           name: adresse.trim(),
-          sub: [complement.toString().trim(), nbBacs ? nbBacs + ' bacs' : '']
-            .filter(Boolean).join(' — ')
+          sub: [row[2] ? row[2].toString().trim() : '', row[3] ? row[3] + ' bacs' : ''].filter(Boolean).join(' — ')
         });
       });
-
-      tournees[name] = {
-        label: name,
-        addresses
-      };
+      tournees[name] = { label: name, addresses };
     });
-
     res.json(tournees);
-  } catch (err) {
-    console.error('Erreur lecture Excel:', err);
+  } catch(err) {
+    console.error('Erreur Excel:', err);
     res.status(500).json({ error: 'Impossible de lire le fichier Excel.' });
   }
 });
 
-// ─── VALIDATIONS : reçoit et stocke les validations des salariés ───
-const validations = [];
-
+// ─── VALIDATION (salarié → serveur) ───
 app.post('/api/validation', (req, res) => {
   const entry = { ...req.body, receivedAt: new Date().toISOString() };
-  validations.push(entry);
-  console.log('Validation reçue:', JSON.stringify(entry));
+
+  if (entry.type === 'fin_tournee') {
+    // Met à jour ou crée la session
+    const idx = db.sessions.findIndex(s => s.agent === entry.agent && s.tourneeId === entry.tourneeId && s.startTime === entry.startTime);
+    if (idx >= 0) db.sessions[idx] = { ...db.sessions[idx], ...entry };
+    else db.sessions.push(entry);
+  } else {
+    db.validations.push(entry);
+    // Crée/met à jour la session en cours
+    const idx = db.sessions.findIndex(s => s.agent === entry.agent && s.tourneeId === entry.tourneeId && s.startTime === entry.startTime);
+    if (idx < 0) {
+      db.sessions.push({
+        agent: entry.agent,
+        tourneeId: entry.tourneeId,
+        tourneeName: entry.tourneeName,
+        startTime: entry.startTime,
+        status: 'en_cours',
+        validations: [entry]
+      });
+    } else {
+      if (!db.sessions[idx].validations) db.sessions[idx].validations = [];
+      db.sessions[idx].validations.push(entry);
+    }
+  }
+
+  saveData(db);
   res.json({ ok: true });
 });
 
-app.get('/api/validations', (req, res) => {
-  res.json(validations);
+// ─── DASHBOARD : toutes les données ───
+app.get('/api/dashboard', (req, res) => {
+  const { date } = req.query;
+  let sessions = db.sessions;
+  let validations = db.validations;
+
+  if (date) {
+    sessions = sessions.filter(s => s.startTime && s.startTime.startsWith(date));
+    validations = validations.filter(v => v.timestamp && v.timestamp.startsWith(date));
+  }
+
+  // Sessions enrichies
+  const sessionsEnrichies = sessions.map(s => {
+    const vals = validations.filter(v => v.agent === s.agent && v.tourneeId === s.tourneeId && v.startTime === s.startTime);
+    const anomalies = vals.filter(v => v.anomalie);
+    return {
+      ...s,
+      nbValidations: vals.length,
+      nbAnomalies: anomalies.length,
+      status: s.endTime ? 'terminee' : 'en_cours',
+      progression: vals.length
+    };
+  });
+
+  // Stats globales
+  const stats = {
+    tourneesEnCours: sessionsEnrichies.filter(s => s.status === 'en_cours').length,
+    tourneesTerminees: sessionsEnrichies.filter(s => s.status === 'terminee').length,
+    totalAnomalies: validations.filter(v => v.anomalie).length,
+    totalAdresses: validations.length,
+  };
+
+  // Anomalies détaillées
+  const anomalies = validations.filter(v => v.anomalie).map(v => ({
+    agent: v.agent,
+    tourneeId: v.tourneeId,
+    adresse: v.adresse,
+    anomalieType: v.anomalieType,
+    commentaire: v.commentaire,
+    timestamp: v.timestamp
+  }));
+
+  res.json({ stats, sessions: sessionsEnrichies, anomalies, validations });
 });
 
-// ─── DEBUG : affiche la structure brute du fichier Excel ───
+// ─── EXPORT EXCEL ───
+app.get('/api/export/excel', (req, res) => {
+  const { date } = req.query;
+  let sessions = db.sessions;
+  let validations = db.validations;
+  if (date) {
+    sessions = sessions.filter(s => s.startTime && s.startTime.startsWith(date));
+    validations = validations.filter(v => v.timestamp && v.timestamp.startsWith(date));
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // Onglet Tournées
+  const sessData = sessions.map(s => {
+    const vals = validations.filter(v => v.agent === s.agent && v.tourneeId === s.tourneeId && v.startTime === s.startTime);
+    return {
+      'Agent': s.agent,
+      'Tournée': s.tourneeId,
+      'Date': s.startTime ? new Date(s.startTime).toLocaleDateString('fr-FR') : '',
+      'Heure début': s.startTime ? new Date(s.startTime).toLocaleTimeString('fr-FR') : '',
+      'Heure fin': s.endTime ? new Date(s.endTime).toLocaleTimeString('fr-FR') : 'En cours',
+      'Durée (min)': s.endTime ? Math.round((new Date(s.endTime) - new Date(s.startTime)) / 60000) : '',
+      'Adresses traitées': vals.length,
+      'Anomalies': vals.filter(v => v.anomalie).length,
+      'Statut': s.endTime ? 'Terminée' : 'En cours'
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sessData), 'Tournées');
+
+  // Onglet Anomalies
+  const anomData = validations.filter(v => v.anomalie).map(v => ({
+    'Date': v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
+    'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
+    'Agent': v.agent,
+    'Tournée': v.tourneeId,
+    'Adresse': v.adresse,
+    'Type anomalie': v.anomalieType || '',
+    'Commentaire': v.commentaire || ''
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(anomData.length ? anomData : [{'Info': 'Aucune anomalie'}]), 'Anomalies');
+
+  // Onglet Détail validations
+  const detailData = validations.map(v => ({
+    'Date': v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
+    'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
+    'Agent': v.agent,
+    'Tournée': v.tourneeId,
+    'Adresse': v.adresse,
+    'Statut': v.anomalie ? 'Anomalie' : 'OK',
+    'Type anomalie': v.anomalieType || '',
+    'Commentaire': v.commentaire || ''
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailData.length ? detailData : [{'Info': 'Aucune donnée'}]), 'Détail validations');
+
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const filename = `sorteurpro_${date || 'complet'}.xlsx`;
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.send(buf);
+});
+
+// ─── DEBUG ───
 app.get('/api/debug', (req, res) => {
   try {
-    const filePath = path.join(__dirname, 'tournees_sorteurs.xlsx');
-    const wb = XLSX.readFile(filePath);
+    const wb = XLSX.readFile(path.join(__dirname, 'tournees_sorteurs.xlsx'));
     const debug = {};
-
     wb.SheetNames.forEach(name => {
-      const ws = wb.Sheets[name];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      debug[name] = {
-        nb_lignes: rows.length,
-        ligne_1: rows[0] || null,
-        ligne_2: rows[1] || null,
-        ligne_3: rows[2] || null,
-        ligne_4: rows[3] || null,
-      };
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1 });
+      debug[name] = { nb_lignes: rows.length, ligne_1: rows[0]||null, ligne_2: rows[1]||null, ligne_3: rows[2]||null, ligne_4: rows[3]||null };
     });
-
     res.json(debug);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── DÉMARRAGE ───
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log('SorteurPro démarré sur le port ' + PORT);
-});
+app.listen(PORT, () => console.log('SorteurPro démarré sur le port ' + PORT));
