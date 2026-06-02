@@ -16,7 +16,7 @@ app.get('/api/tournees', (req, res) => {
   const tournees = {};
 
   wb.SheetNames.forEach(name => {
-    if (name.startsWith('T')) {
+    if (name !== '📊 Récapitulatif') {
       const ws = wb.Sheets[name];
       const rows = XLSX.utils.sheet_to_json(ws, { range: 3 });
       tournees[name] = {
