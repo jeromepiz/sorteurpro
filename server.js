@@ -50,3 +50,18 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('SorteurPro démarré sur le port ' + PORT);
 });
+app.get('/api/debug', (req, res) => {
+  const filePath = path.join(__dirname, 'tournees_sorteurs.xlsx');
+  const wb = XLSX.readFile(filePath);
+  const debug = {};
+  wb.SheetNames.forEach(name => {
+    const ws = wb.Sheets[name];
+    const rows = XLSX.utils.sheet_to_json(ws, { range: 3 });
+    debug[name] = {
+      colonnes: rows.length > 0 ? Object.keys(rows[0]) : [],
+      premiere_ligne: rows[0] || null,
+      nb_lignes: rows.length
+    };
+  });
+  res.json(debug);
+});
