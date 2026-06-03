@@ -9,7 +9,6 @@
 <title>SorteurPro</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
   :root {
     --blue: #1a3a5c; --blue-mid: #2e6da4; --blue-light: #d6e4f0;
     --green: #155724; --green-bg: #d4edda; --green-border: #c3e6cb;
@@ -18,19 +17,12 @@
     --text: #1a1a1a; --text-muted: #666;
     --radius: 10px; --radius-lg: 14px;
   }
-
   html, body { height: 100%; background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--text); }
-
   .app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #f0f2f5; display: flex; flex-direction: column; }
 
-  .app-header {
-    background: var(--blue); color: white;
-    padding: 14px 16px 12px;
-    display: flex; align-items: center; gap: 10px;
-    position: sticky; top: 0; z-index: 10;
-  }
+  .app-header { background: var(--blue); color: white; padding: 14px 16px 12px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 10; }
   .app-header .logo { font-size: 24px; }
-  .app-header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
+  .app-header h1 { font-size: 17px; font-weight: 600; }
   .app-header .sub { font-size: 11px; opacity: 0.65; margin-top: 1px; }
   .back-btn { background: none; border: none; color: white; font-size: 22px; padding: 0 6px 0 0; cursor: pointer; opacity: 0.8; line-height: 1; }
 
@@ -38,25 +30,12 @@
   .screen.active { display: block; }
 
   label { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 5px; margin-top: 14px; }
-  input[type=text], select {
-    width: 100%; font-size: 16px; border-radius: var(--radius);
-    border: 1px solid var(--gray-border); padding: 11px 14px;
-    background: white; color: var(--text); appearance: none; -webkit-appearance: none;
-  }
+  input[type=text], select { width: 100%; font-size: 16px; border-radius: var(--radius); border: 1px solid var(--gray-border); padding: 11px 14px; background: white; color: var(--text); appearance: none; -webkit-appearance: none; }
   input[type=text]:focus, select:focus { outline: none; border-color: var(--blue-mid); }
-  textarea {
-    width: 100%; font-size: 14px; border-radius: var(--radius);
-    border: 1px solid var(--orange-border); padding: 10px 12px;
-    background: white; color: var(--text); min-height: 80px; resize: vertical; font-family: inherit;
-  }
+  textarea { width: 100%; font-size: 14px; border-radius: var(--radius); border: 1px solid var(--orange-border); padding: 10px 12px; background: white; color: var(--text); min-height: 80px; resize: vertical; font-family: inherit; }
   textarea:focus { outline: none; border-color: var(--red); }
 
-  .btn-primary {
-    background: var(--blue); color: white; border: none;
-    border-radius: var(--radius); padding: 14px;
-    font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 20px;
-    transition: opacity 0.15s; letter-spacing: 0.2px;
-  }
+  .btn-primary { background: var(--blue); color: white; border: none; border-radius: var(--radius); padding: 14px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 20px; transition: opacity 0.15s; }
   .btn-primary:active { opacity: 0.8; }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -66,32 +45,17 @@
   .progress-bar { background: var(--gray-bg); border-radius: 99px; height: 7px; overflow: hidden; }
   .progress-fill { background: var(--blue); height: 100%; border-radius: 99px; transition: width 0.4s ease; }
 
-  .info-row {
-    display: flex; align-items: center; gap: 8px;
-    background: white; border: 1px solid var(--gray-border);
-    border-radius: var(--radius); padding: 10px 14px;
-    margin-bottom: 10px; font-size: 13px; color: var(--text-muted);
-  }
+  .info-row { display: flex; align-items: center; gap: 8px; background: white; border: 1px solid var(--gray-border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; font-size: 13px; color: var(--text-muted); }
   .info-row .val { font-weight: 600; margin-left: auto; color: var(--text); font-size: 14px; }
 
-  .addr-card {
-    background: white; border: 1px solid var(--gray-border);
-    border-radius: var(--radius-lg); padding: 14px;
-    margin-bottom: 10px; display: flex; align-items: center; gap: 12px;
-    transition: border-color 0.15s, opacity 0.15s;
-  }
+  .addr-card { background: white; border: 1px solid var(--gray-border); border-radius: var(--radius-lg); padding: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; transition: border-color 0.15s, opacity 0.15s; }
   .addr-card.clickable { cursor: pointer; }
   .addr-card.clickable:active { opacity: 0.85; }
   .addr-card.done { opacity: 0.55; }
   .addr-card.locked { opacity: 0.38; }
   .addr-card.active-card { border-color: var(--blue); border-width: 2px; }
 
-  .step-badge {
-    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700;
-    background: var(--gray-bg); color: var(--text-muted); border: 1px solid var(--gray-border);
-  }
+  .step-badge { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; background: var(--gray-bg); color: var(--text-muted); border: 1px solid var(--gray-border); }
   .step-badge.done { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
   .step-badge.active { background: var(--blue); color: white; border-color: var(--blue); }
 
@@ -108,64 +72,61 @@
   .action-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 
   .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .btn-ok, .btn-ko {
-    border: none; border-radius: var(--radius-lg); padding: 20px 10px;
-    font-size: 16px; font-weight: 700; cursor: pointer;
-    display: flex; flex-direction: column; align-items: center; gap: 7px;
-    transition: opacity 0.15s, transform 0.1s;
-  }
+  .btn-ok, .btn-ko { border: none; border-radius: var(--radius-lg); padding: 20px 10px; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 7px; transition: opacity 0.15s, transform 0.1s; }
   .btn-ok:active, .btn-ko:active { transform: scale(0.97); opacity: 0.85; }
   .btn-ok { background: #1b5e20; color: white; }
   .btn-ko { background: var(--red); color: white; }
   .btn-ok .bico, .btn-ko .bico { font-size: 30px; }
-  .btn-ok .blbl, .btn-ko .blbl { font-size: 16px; }
   .btn-ok .bsub, .btn-ko .bsub { font-size: 11px; opacity: 0.75; font-weight: 400; }
 
-  .anomaly-panel {
-    display: none; margin-top: 14px;
-    background: var(--orange-bg); border: 1px solid var(--orange-border);
-    border-radius: var(--radius-lg); padding: 14px;
-  }
+  /* ─── PANEL ANOMALIE ─── */
+  .anomaly-panel { display: none; margin-top: 14px; background: var(--orange-bg); border: 1px solid var(--orange-border); border-radius: var(--radius-lg); padding: 14px; }
   .anomaly-panel.visible { display: block; }
   .anomaly-panel label { color: var(--orange); font-weight: 600; margin-top: 0; }
   .anomaly-panel label:not(:first-child) { margin-top: 12px; }
 
   .chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-  .chip {
-    padding: 10px 8px; font-size: 12px; border-radius: var(--radius);
-    border: 1px solid var(--orange-border); background: white;
-    cursor: pointer; text-align: center; font-weight: 600;
-    color: var(--orange); transition: background 0.1s; line-height: 1.3;
-  }
+  .chip { padding: 10px 8px; font-size: 12px; border-radius: var(--radius); border: 1px solid var(--orange-border); background: white; cursor: pointer; text-align: center; font-weight: 600; color: var(--orange); line-height: 1.3; }
   .chip:active { opacity: 0.8; }
   .chip.selected { background: var(--red); color: white; border-color: var(--red); }
 
-  .btn-confirm-ko {
-    background: var(--red); color: white; border: none;
-    border-radius: var(--radius); padding: 12px; font-size: 15px;
-    font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px; transition: opacity 0.15s;
+  /* ─── PHOTO ─── */
+  .photo-zone { margin-top: 12px; }
+  .photo-btn {
+    width: 100%; padding: 11px; border: 2px dashed var(--orange-border);
+    border-radius: var(--radius); background: white; color: var(--orange);
+    font-size: 14px; font-weight: 600; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; gap: 8px;
+    transition: background 0.1s, border-color 0.1s;
   }
+  .photo-btn:active { background: var(--orange-bg); }
+  .photo-btn.has-photo { border-style: solid; border-color: #1b5e20; color: #1b5e20; background: var(--green-bg); }
+  .photo-preview-wrap { margin-top: 8px; position: relative; display: none; }
+  .photo-preview-wrap.visible { display: block; }
+  .photo-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--gray-border); display: block; }
+  .photo-delete { position: absolute; top: 6px; right: 6px; background: rgba(125,31,31,0.85); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+  .btn-confirm-ko { background: var(--red); color: white; border: none; border-radius: var(--radius); padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px; transition: opacity 0.15s; }
   .btn-confirm-ko:disabled { opacity: 0.35; cursor: not-allowed; }
   .btn-confirm-ko:active { opacity: 0.8; }
 
+  /* ─── FIN ─── */
   .finish-hero { text-align: center; padding: 16px 0 20px; }
   .finish-icon { font-size: 56px; margin-bottom: 10px; }
   .finish-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
   .finish-date { font-size: 13px; color: var(--text-muted); }
-
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
   .stat-card { background: white; border: 1px solid var(--gray-border); border-radius: var(--radius-lg); padding: 14px; text-align: center; }
   .stat-val { font-size: 28px; font-weight: 700; color: var(--blue); }
   .stat-lbl { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-
   .section-title { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin: 16px 0 8px; }
-
   .detail-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--gray-bg); }
   .detail-num { font-size: 12px; color: var(--text-muted); min-width: 20px; padding-top: 1px; }
   .detail-info { flex: 1; }
   .detail-name { font-size: 13px; font-weight: 600; }
   .detail-time { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
   .detail-comment { font-size: 11px; color: #8a4a00; margin-top: 2px; }
+  .detail-photo { width: 60px; height: 45px; object-fit: cover; border-radius: 6px; border: 1px solid var(--gray-border); flex-shrink: 0; }
   .badge { display: inline-flex; align-items: center; font-size: 11px; padding: 3px 9px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
   .badge-ok { background: var(--green-bg); color: var(--green); }
   .badge-ko { background: #f8d7da; color: #721c24; }
@@ -174,7 +135,6 @@
   .spinner { width: 40px; height: 40px; border: 3px solid var(--gray-border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-text { font-size: 14px; color: var(--text-muted); }
-
   .error-msg { color: #721c24; font-size: 13px; margin-top: 8px; display: none; background: #f8d7da; padding: 10px 12px; border-radius: var(--radius); }
 </style>
 </head>
@@ -183,10 +143,7 @@
 
   <div class="app-header" id="app-header">
     <span class="logo">🗑️</span>
-    <div>
-      <h1>SorteurPro</h1>
-      <div class="sub" id="header-sub">Gestion des tournées</div>
-    </div>
+    <div><h1>SorteurPro</h1><div class="sub">Gestion des tournées</div></div>
   </div>
 
   <!-- ══ CONNEXION ══ -->
@@ -201,9 +158,7 @@
       <label>Nom</label>
       <input type="text" id="inp-nom" placeholder="Ex : Dupont" autocomplete="family-name">
       <label>Numéro de tournée</label>
-      <select id="sel-tournee">
-        <option value="">— Chargement… —</option>
-      </select>
+      <select id="sel-tournee"><option value="">— Chargement… —</option></select>
       <div class="error-msg" id="login-error">Veuillez remplir tous les champs.</div>
       <button class="btn-primary" onclick="startTournee()">Démarrer la tournée →</button>
     </div>
@@ -233,19 +188,35 @@
       <div class="action-sub" id="action-addr-sub"></div>
       <div class="btn-grid">
         <button class="btn-ok" onclick="validateAddr(false)">
-          <span class="bico">✅</span><span class="blbl">OK</span>
+          <span class="bico">✅</span><span>OK</span>
           <span class="bsub">Collecte effectuée</span>
         </button>
         <button class="btn-ko" onclick="toggleAnomalyPanel()">
-          <span class="bico">⚠️</span><span class="blbl">Anomalie</span>
+          <span class="bico">⚠️</span><span>Anomalie</span>
           <span class="bsub">Signaler un problème</span>
         </button>
       </div>
+
       <div class="anomaly-panel" id="anomaly-panel">
         <label>Type d'anomalie *</label>
         <div class="chips" id="anomaly-chips"></div>
-        <label>Commentaire complémentaire (optionnel)</label>
+
+        <label>Commentaire (optionnel)</label>
         <textarea id="anomaly-text" placeholder="Précisez si nécessaire…"></textarea>
+
+        <!-- ZONE PHOTO -->
+        <div class="photo-zone">
+          <label>Photo (optionnelle)</label>
+          <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)">
+          <button class="photo-btn" id="photo-btn" onclick="document.getElementById('photo-input').click()">
+            <span>📷</span><span>Prendre une photo</span>
+          </button>
+          <div class="photo-preview-wrap" id="photo-preview-wrap">
+            <img id="photo-preview" class="photo-preview" src="" alt="Aperçu photo">
+            <button class="photo-delete" onclick="deletePhoto()" title="Supprimer la photo">✕</button>
+          </div>
+        </div>
+
         <button class="btn-confirm-ko" id="btn-confirm-ko" onclick="validateAddr(true)" disabled>
           Confirmer l'anomalie et continuer →
         </button>
@@ -288,6 +259,7 @@ const ANOMALY_TYPES = [
 let TOURNEES = {};
 let session = { agent: "", tourneeId: "", tourneeData: null, startTime: null, endTime: null, currentIdx: 0, results: [] };
 let selectedAnomalyId = null;
+let currentPhotoBase64 = null;
 
 // ─── CHARGEMENT TOURNÉES ───
 async function loadTournees() {
@@ -305,19 +277,8 @@ async function loadTournees() {
       sel.appendChild(opt);
     });
   } catch(e) {
-    // Données de secours si serveur inaccessible
-    TOURNEES = { DEMO: { label: "Tournée démo", addresses: [
-      { name: "1 rue de l'Exemple", sub: "Résidence Test — 3 bacs OM" },
-      { name: "2 avenue de la Démo", sub: "Immeuble Test — 2 bacs OM" },
-    ]}};
-    const sel = document.getElementById('sel-tournee');
-    sel.innerHTML = '<option value="">— Choisir une tournée —</option>';
-    Object.entries(TOURNEES).forEach(([id, t]) => {
-      const opt = document.createElement('option');
-      opt.value = id; opt.textContent = t.label || id;
-      sel.appendChild(opt);
-    });
-    console.warn('Serveur inaccessible — mode démo activé.');
+    TOURNEES = {};
+    document.getElementById('sel-tournee').innerHTML = '<option value="">Erreur de chargement</option>';
   }
   document.getElementById('loading-tournees').style.display = 'none';
   document.getElementById('login-form').style.display = 'block';
@@ -327,7 +288,6 @@ async function loadTournees() {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  // Remonte en haut de l'écran à chaque changement de vue
   window.scrollTo({ top: 0 });
 }
 
@@ -348,7 +308,7 @@ function setHeader(title, sub, showBack, backFn) {
   hdr.appendChild(div);
 }
 
-// ─── UTILITAIRES ───
+// ─── UTILS ───
 function fmt(dt) {
   if (!dt) return '—';
   return new Date(dt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -385,7 +345,7 @@ function startTournee() {
   showScreen('screen-list');
 }
 
-// ─── LISTE DES ADRESSES ───
+// ─── LISTE ───
 function renderList() {
   const addrs = session.tourneeData.addresses;
   const done  = session.results.filter(r => r !== null).length;
@@ -422,37 +382,30 @@ function renderList() {
       if (res.anomalie) {
         const anomEl = document.createElement('div');
         anomEl.className = 'addr-anomaly';
-        anomEl.textContent = '⚠️ ' + anomalyLabel(res.anomalieType) + (res.commentaire ? ' — ' + res.commentaire : '');
+        anomEl.textContent = '⚠️ ' + anomalyLabel(res.anomalieType) + (res.commentaire ? ' — ' + res.commentaire : '') + (res.photo ? ' 📷' : '');
         info.appendChild(anomEl);
       }
     }
 
     const icon = document.createElement('div');
     icon.className = 'addr-icon';
-    if (isDone && res.anomalie) icon.textContent = '⚠️';
-    else if (isDone) icon.textContent = '✅';
-    else if (isActive) icon.textContent = '👉';
-    else icon.textContent = '⏳';
-    if (isLocked) icon.style.opacity = '0.3';
+    icon.style.opacity = isLocked ? '0.3' : '1';
+    icon.textContent = isDone && res.anomalie ? '⚠️' : isDone ? '✅' : isActive ? '👉' : '⏳';
 
-    card.appendChild(badge);
-    card.appendChild(info);
-    card.appendChild(icon);
+    card.appendChild(badge); card.appendChild(info); card.appendChild(icon);
     el.appendChild(card);
   });
 
-  // ── Scroll automatique vers la prochaine adresse active ──
+  // Scroll vers la prochaine adresse active
   setTimeout(() => {
     const activeCard = document.querySelector('.active-card');
-    if (activeCard) {
-      activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    if (activeCard) activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 100);
 
   if (done === addrs.length) setTimeout(showFinish, 500);
 }
 
-// ─── ÉCRAN ACTION ───
+// ─── ACTION ───
 function openAction(idx) {
   session.currentIdx = idx;
   const addr = session.tourneeData.addresses[idx];
@@ -461,21 +414,17 @@ function openAction(idx) {
     `Adresse ${idx + 1} / ${session.tourneeData.addresses.length}`,
     session.tourneeData.label,
     true,
-    () => {
-      setHeader(session.tourneeData.label, session.agent, false, null);
-      renderList();
-      showScreen('screen-list');
-    }
+    () => { setHeader(session.tourneeData.label, session.agent, false, null); renderList(); showScreen('screen-list'); }
   );
 
   document.getElementById('action-addr-name').textContent = addr.name;
   document.getElementById('action-addr-sub').textContent  = addr.sub || '';
   document.getElementById('anomaly-panel').classList.remove('visible');
   document.getElementById('anomaly-text').value = '';
+  resetPhoto();
   buildChips();
   selectedAnomalyId = null;
   document.getElementById('btn-confirm-ko').disabled = true;
-
   showScreen('screen-action');
 }
 
@@ -484,8 +433,7 @@ function buildChips() {
   grid.innerHTML = '';
   ANOMALY_TYPES.forEach(a => {
     const chip = document.createElement('button');
-    chip.className = 'chip';
-    chip.textContent = a.label;
+    chip.className = 'chip'; chip.textContent = a.label;
     chip.onclick = () => {
       document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
       chip.classList.add('selected');
@@ -500,7 +448,60 @@ function toggleAnomalyPanel() {
   const panel = document.getElementById('anomaly-panel');
   const wasVisible = panel.classList.contains('visible');
   panel.classList.toggle('visible');
-  if (!wasVisible) buildChips();
+  if (!wasVisible) { buildChips(); resetPhoto(); }
+}
+
+// ─── GESTION PHOTO ───
+function onPhotoSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // Redimensionne la photo avant envoi (max 1200px, qualité 0.75)
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const maxSize = 1200;
+      let w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      currentPhotoBase64 = canvas.toDataURL('image/jpeg', 0.75);
+
+      // Affiche l'aperçu
+      document.getElementById('photo-preview').src = currentPhotoBase64;
+      document.getElementById('photo-preview-wrap').classList.add('visible');
+      const btn = document.getElementById('photo-btn');
+      btn.classList.add('has-photo');
+      btn.innerHTML = '<span>✅</span><span>Photo ajoutée — retoucher</span>';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function deletePhoto() {
+  currentPhotoBase64 = null;
+  document.getElementById('photo-input').value = '';
+  document.getElementById('photo-preview-wrap').classList.remove('visible');
+  document.getElementById('photo-preview').src = '';
+  const btn = document.getElementById('photo-btn');
+  btn.classList.remove('has-photo');
+  btn.innerHTML = '<span>📷</span><span>Prendre une photo</span>';
+}
+
+function resetPhoto() {
+  currentPhotoBase64 = null;
+  document.getElementById('photo-input').value = '';
+  document.getElementById('photo-preview-wrap').classList.remove('visible');
+  document.getElementById('photo-preview').src = '';
+  const btn = document.getElementById('photo-btn');
+  btn.classList.remove('has-photo');
+  btn.innerHTML = '<span>📷</span><span>Prendre une photo</span>';
 }
 
 // ─── VALIDATION ───
@@ -512,9 +513,9 @@ function validateAddr(isAnomalie) {
     timestamp:    new Date().toISOString(),
     anomalie:     isAnomalie,
     anomalieType: isAnomalie ? selectedAnomalyId : null,
-    commentaire:  commentaire
+    commentaire:  commentaire,
+    photo:        isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null
   };
-
   session.results[session.currentIdx] = result;
 
   // Envoi au serveur
@@ -530,23 +531,20 @@ function validateAddr(isAnomalie) {
       anomalie:     isAnomalie,
       anomalieType: isAnomalie ? selectedAnomalyId : null,
       commentaire:  commentaire,
+      photo:        isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null,
       timestamp:    result.timestamp,
       startTime:    session.startTime.toISOString()
     })
   }).catch(() => {});
 
-  // Avance au suivant
-  if (session.currentIdx + 1 < session.tourneeData.addresses.length) {
-    session.currentIdx++;
-  }
+  if (session.currentIdx + 1 < session.tourneeData.addresses.length) session.currentIdx++;
 
-  // Retour liste + scroll automatique vers la prochaine adresse
   setHeader(session.tourneeData.label, session.agent, false, null);
   showScreen('screen-list');
   renderList();
 }
 
-// ─── FIN DE TOURNÉE ───
+// ─── FIN ───
 function showFinish() {
   session.endTime = new Date();
   const addrs     = session.tourneeData.addresses;
@@ -554,7 +552,6 @@ function showFinish() {
   const anomalies = session.results.filter(r => r && r.anomalie).length;
 
   setHeader('Tournée terminée', session.agent, false, null);
-
   document.getElementById('finish-date').textContent =
     session.endTime.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) +
     ' · Début ' + fmt(session.startTime) + ' · Fin ' + fmt(session.endTime);
@@ -564,20 +561,13 @@ function showFinish() {
   document.getElementById('stat-ok').textContent    = addrs.length - anomalies;
   document.getElementById('stat-ko').textContent    = anomalies;
 
-  // Envoi récap fin de tournée
   fetch('/api/validation', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type:      'fin_tournee',
-      agent:     session.agent,
-      tourneeId: session.tourneeId,
-      startTime: session.startTime.toISOString(),
-      endTime:   session.endTime.toISOString(),
-      dureeMs:   duree,
-      total:     addrs.length,
-      anomalies: anomalies,
-      timestamp: session.endTime.toISOString()
+      type: 'fin_tournee', agent: session.agent, tourneeId: session.tourneeId,
+      startTime: session.startTime.toISOString(), endTime: session.endTime.toISOString(),
+      dureeMs: duree, total: addrs.length, anomalies, timestamp: session.endTime.toISOString()
     })
   }).catch(() => {});
 
@@ -586,7 +576,6 @@ function showFinish() {
   addrs.forEach((addr, i) => {
     const res = session.results[i];
     if (!res) return;
-    const at  = res.anomalie ? anomalyLabel(res.anomalieType) : '';
     const row = document.createElement('div');
     row.className = 'detail-row';
     row.innerHTML = `
@@ -596,7 +585,8 @@ function showFinish() {
         <div class="detail-time">${fmt(res.timestamp)}</div>
         ${res.commentaire ? `<div class="detail-comment">${res.commentaire}</div>` : ''}
       </div>
-      ${res.anomalie ? `<span class="badge badge-ko">⚠️ ${at}</span>` : `<span class="badge badge-ok">✅ OK</span>`}
+      ${res.photo ? `<img class="detail-photo" src="${res.photo}" alt="Photo anomalie">` : ''}
+      ${res.anomalie ? `<span class="badge badge-ko">⚠️ ${anomalyLabel(res.anomalieType)}</span>` : `<span class="badge badge-ok">✅ OK</span>`}
     `;
     detail.appendChild(row);
   });
@@ -604,14 +594,12 @@ function showFinish() {
   showScreen('screen-finish');
 }
 
-// ─── NOUVELLE TOURNÉE ───
 function newTournee() {
   session = { agent: '', tourneeId: '', tourneeData: null, startTime: null, endTime: null, currentIdx: 0, results: [] };
   setHeader('SorteurPro', 'Gestion des tournées', false, null);
   showScreen('screen-login');
 }
 
-// ─── INIT ───
 loadTournees();
 </script>
 </body>
