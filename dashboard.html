@@ -75,6 +75,8 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 .badge-en-cours { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
 .badge-terminee { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
 .badge-anomalie { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); margin-left: 4px; }
+.badge-sortie { background: #e8f0f8; color: #1a3a5c; border: 1px solid #90c4f0; }
+.badge-rentree { background: #f0eaf8; color: #3d1f6e; border: 1px solid #c4a0f0; }
 
 .anomalie-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--gray-bg); }
 .anomalie-row:last-child { border-bottom: none; }
@@ -251,7 +253,7 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
     <div style="overflow-x:auto;">
       <table class="histo-table">
         <thead><tr>
-          <th>Agent</th><th>Tournée</th><th>Date</th>
+          <th>Agent</th><th>Tournée</th><th>Type</th><th>Date</th>
           <th>Début</th><th>Fin</th><th>Durée</th>
           <th>Adresses</th><th>Anomalies</th><th>Statut</th>
         </tr></thead>
@@ -359,6 +361,13 @@ async function loadDashboard() {
   } catch(e) { console.error(e); }
 }
 
+function typeBadge(type) {
+  if (!type) return '';
+  return type === 'sortie'
+    ? `<span class="badge badge-sortie">📤 Sortie</span>`
+    : `<span class="badge badge-rentree">📥 Rentrée</span>`;
+}
+
 function renderStats(s) {
   document.getElementById('s-en-cours').textContent  = s.tourneesEnCours  ||0;
   document.getElementById('s-terminees').textContent = s.tourneesTerminees||0;
@@ -377,6 +386,7 @@ function renderTournees(sessions, validations) {
     const total=s.total||'?', done=vals.length, pct=total!=='?'?Math.round(done/total*100):0;
     const anomCount=vals.filter(v=>v.anomalie).length;
     const badge=s.status==='terminee'?`<span class="badge badge-terminee">✓ Terminée</span>`:`<span class="badge badge-en-cours">⏳ En cours</span>`;
+    const typeBdg=typeBadge(s.typeTournee);
     const anomBadge=anomCount>0?`<span class="badge badge-anomalie">⚠️ ${anomCount}</span>`:'';
     const row=document.createElement('div');
     row.className='tournee-row';
@@ -384,7 +394,7 @@ function renderTournees(sessions, validations) {
       <div class="agent-avatar">${initials(s.agent)}</div>
       <div class="tournee-info"><div class="tournee-agent">${s.agent}</div><div class="tournee-meta">${s.tourneeId} · Début ${fmt(s.startTime)}${s.endTime?' · Fin '+fmt(s.endTime):''}</div></div>
       <div class="tournee-right">
-        <div>${badge}${anomBadge}</div>
+        <div>${badge} ${typeBdg} ${anomBadge}</div>
         <div class="progress-mini"><div class="progress-mini-fill ${s.status==='terminee'?'done':''}" style="width:${pct}%"></div></div>
         <div class="progress-txt">${done} / ${total} adresses</div>
       </div>
@@ -404,7 +414,7 @@ function renderAnomalies(anomalies) {
       <div style="font-size:20px;flex-shrink:0;margin-top:1px;">⚠️</div>
       <div class="anomalie-info">
         <div class="anomalie-adresse">${a.adresse||'—'}</div>
-        <div class="anomalie-meta">${a.agent} · ${a.tourneeId} · <strong>${anomLabel(a.anomalieType)}</strong></div>
+        <div class="anomalie-meta">${a.agent} · ${a.tourneeId} ${typeBadge(a.typeTournee)} · <strong>${anomLabel(a.anomalieType)}</strong></div>
         ${a.commentaire?`<div class="anomalie-comment">💬 ${a.commentaire}</div>`:''}
         ${a.photo?`<img class="anomalie-photo" src="${a.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
       </div>
@@ -422,8 +432,9 @@ function renderHistorique(sessions, validations) {
     const dureeMs=s.endTime?new Date(s.endTime)-new Date(s.startTime):null;
     const anomCount=vals.filter(v=>v.anomalie).length;
     const badge=s.status==='terminee'?`<span class="badge badge-terminee">✓ Terminée</span>`:`<span class="badge badge-en-cours">⏳ En cours</span>`;
+    const typeBdg=typeBadge(s.typeTournee);
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td><strong>${s.agent}</strong></td><td>${s.tourneeId}</td><td>${fmtDate(s.startTime)}</td><td>${fmt(s.startTime)}</td><td>${s.endTime?fmt(s.endTime):'—'}</td><td class="duration">${fmtDuree(dureeMs)}</td><td>${vals.length}${s.total?' / '+s.total:''}</td><td>${anomCount>0?`<span style="color:var(--red);font-weight:700;">⚠️ ${anomCount}</span>`:'<span style="color:var(--green-dark);">0</span>'}</td><td>${badge}</td>`;
+    tr.innerHTML=`<td><strong>${s.agent}</strong></td><td>${s.tourneeId}</td><td>${typeBadge(s.typeTournee)}</td><td>${fmtDate(s.startTime)}</td><td>${fmt(s.startTime)}</td><td>${s.endTime?fmt(s.endTime):'—'}</td><td class="duration">${fmtDuree(dureeMs)}</td><td>${vals.length}${s.total?' / '+s.total:''}</td><td>${anomCount>0?`<span style="color:var(--red);font-weight:700;">⚠️ ${anomCount}</span>`:'<span style="color:var(--green-dark);">0</span>'}</td><td>${badge}</td>`;
     tr.onclick=()=>openModal(s,vals);
     tbody.appendChild(tr);
   });
@@ -436,7 +447,7 @@ function openModal(session, validations) {
 
   document.getElementById('modal-title').textContent=`${session.agent} — ${session.tourneeId}`;
   const dureeMs=session.endTime?new Date(session.endTime)-new Date(session.startTime):null;
-  document.getElementById('modal-sub').textContent=`${fmtDate(session.startTime)} · Début ${fmt(session.startTime)}`+(session.endTime?` · Fin ${fmt(session.endTime)}`:'')+(dureeMs?` · ${fmtDuree(dureeMs)}`:'')+` · ${session.status==='terminee'?'✓ Terminée':'⏳ En cours'}`;
+  document.getElementById('modal-sub').innerHTML=`${fmtDate(session.startTime)} · Début ${fmt(session.startTime)}`+(session.endTime?` · Fin ${fmt(session.endTime)}`:'')+(dureeMs?` · ${fmtDuree(dureeMs)}`:'')+` · ${session.status==='terminee'?'✓ Terminée':'⏳ En cours'} `+typeBadge(session.typeTournee);
 
   const total=session.total||validations.length, anomCount=validations.filter(v=>v.anomalie).length;
   document.getElementById('modal-stats').innerHTML=`
@@ -501,7 +512,7 @@ function openPdfModal() {
         <input type="checkbox" id="${id}" data-agent="${s.agent}" data-tourneeid="${s.tourneeId}" data-starttime="${s.startTime}">
         <div class="tournee-select-info">
           <div class="tournee-select-name">${s.agent} — ${s.tourneeId}</div>
-          <div class="tournee-select-meta">${fmtDate(s.startTime)} · ${fmt(s.startTime)}${s.endTime?' → '+fmt(s.endTime):' (en cours)'} · ${vals.length}${s.total?' / '+s.total:''} adresses · ${anomCount} anomalie${anomCount>1?'s':''}${hasPhotos?' · 📷 photos':''}</div>
+          <div class="tournee-select-meta">${typeBadge(s.typeTournee) || ''} ${fmtDate(s.startTime)} · ${fmt(s.startTime)}${s.endTime?' → '+fmt(s.endTime):' (en cours)'} · ${vals.length}${s.total?' / '+s.total:''} adresses · ${anomCount} anomalie${anomCount>1?'s':''}${hasPhotos?' · 📷 photos':''}</div>
         </div>`;
       list.appendChild(item);
     });
@@ -562,7 +573,7 @@ function buildAndPrintPdf(selected) {
     page.innerHTML=`
       <div class="pdf-header">
         <h1>🗑️ SorteurPro — Rapport de tournée</h1>
-        <p>${s.agent} · Tournée ${s.tourneeId} · ${fmtDate(s.startTime)}</p>
+        <p>${s.agent} · Tournée ${s.tourneeId} · ${s.typeTournee === 'sortie' ? '📤 Sortie' : s.typeTournee === 'rentree' ? '📥 Rentrée' : ''} · ${fmtDate(s.startTime)}</p>
       </div>`;
 
     // Stats
