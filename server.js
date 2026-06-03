@@ -76,9 +76,14 @@ app.post('/api/validation', (req, res) => {
         if (tournees[entry.tourneeId]) totalAdresses = tournees[entry.tourneeId].addresses.length;
       } catch(e) {}
       db.sessions.push({
-        agent: entry.agent, tourneeId: entry.tourneeId, tourneeName: entry.tourneeName,
-        startTime: entry.startTime, status: 'en_cours',
-        totalAdresses, validations: [entry]
+        agent:        entry.agent,
+        tourneeId:    entry.tourneeId,
+        tourneeName:  entry.tourneeName,
+        typeTournee:  entry.typeTournee || null,  // ← récupéré depuis la validation
+        startTime:    entry.startTime,
+        status:       'en_cours',
+        totalAdresses,
+        validations:  [entry]
       });
     } else {
       if (!db.sessions[idx].validations) db.sessions[idx].validations = [];
@@ -88,6 +93,10 @@ app.post('/api/validation', (req, res) => {
           const tournees = readTournees();
           if (tournees[entry.tourneeId]) db.sessions[idx].totalAdresses = tournees[entry.tourneeId].addresses.length;
         } catch(e) {}
+      }
+      // Met à jour typeTournee si absent (sessions créées avant cette version)
+      if (!db.sessions[idx].typeTournee && entry.typeTournee) {
+        db.sessions[idx].typeTournee = entry.typeTournee;
       }
     }
   }
