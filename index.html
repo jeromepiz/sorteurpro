@@ -11,16 +11,23 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
     --blue: #1a3a5c; --blue-mid: #2e6da4; --blue-light: #d6e4f0;
-    --green: #155724; --green-bg: #d4edda; --green-border: #c3e6cb;
+    --green: #155724; --green-bg: #d4edda; --green-border: #c3e6cb; --green-dark: #1b5e20;
     --red: #7d1f1f; --orange: #7d3c00; --orange-bg: #fff8f0; --orange-border: #f0c080;
     --gray-bg: #f5f5f5; --gray-border: #e0e0e0;
     --text: #1a1a1a; --text-muted: #666;
     --radius: 10px; --radius-lg: 14px;
+    /* Couleurs type tournée */
+    --sortie: #1a3a5c; --sortie-bg: #e8f0f8; --sortie-border: #90c4f0;
+    --rentree: #3d1f6e; --rentree-bg: #f0eaf8; --rentree-border: #c4a0f0;
   }
   html, body { height: 100%; background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--text); }
   .app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #f0f2f5; display: flex; flex-direction: column; }
 
-  .app-header { background: var(--blue); color: white; padding: 14px 16px 12px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 10; }
+  /* ─── HEADER ─── */
+  .app-header { color: white; padding: 14px 16px 12px; display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 10; }
+  .app-header.sortie { background: var(--sortie); }
+  .app-header.rentree { background: var(--rentree); }
+  .app-header.default { background: var(--blue); }
   .app-header .logo { font-size: 24px; }
   .app-header h1 { font-size: 17px; font-weight: 600; }
   .app-header .sub { font-size: 11px; opacity: 0.65; margin-top: 1px; }
@@ -29,35 +36,86 @@
   .screen { display: none; flex: 1; padding: 16px; }
   .screen.active { display: block; }
 
+  /* ─── FORMULAIRE ─── */
   label { font-size: 13px; color: var(--text-muted); display: block; margin-bottom: 5px; margin-top: 14px; }
   input[type=text], select { width: 100%; font-size: 16px; border-radius: var(--radius); border: 1px solid var(--gray-border); padding: 11px 14px; background: white; color: var(--text); appearance: none; -webkit-appearance: none; }
   input[type=text]:focus, select:focus { outline: none; border-color: var(--blue-mid); }
   textarea { width: 100%; font-size: 14px; border-radius: var(--radius); border: 1px solid var(--orange-border); padding: 10px 12px; background: white; color: var(--text); min-height: 80px; resize: vertical; font-family: inherit; }
   textarea:focus { outline: none; border-color: var(--red); }
 
+  /* ─── TYPE TOURNÉE (SORTIE / RENTRÉE) ─── */
+  .type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+  .type-btn {
+    padding: 16px 10px; border-radius: var(--radius-lg); border: 2px solid var(--gray-border);
+    background: white; cursor: pointer; text-align: center; transition: all 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .type-btn .t-icon { font-size: 28px; }
+  .type-btn .t-lbl { font-size: 14px; font-weight: 700; }
+  .type-btn .t-sub { font-size: 11px; color: var(--text-muted); }
+  .type-btn.selected-sortie { border-color: var(--sortie); background: var(--sortie-bg); }
+  .type-btn.selected-sortie .t-lbl { color: var(--sortie); }
+  .type-btn.selected-rentree { border-color: var(--rentree); background: var(--rentree-bg); }
+  .type-btn.selected-rentree .t-lbl { color: var(--rentree); }
+  .type-btn:active { transform: scale(0.97); }
+
+  /* ─── REPRISE DE TOURNÉE ─── */
+  .reprise-card {
+    background: white; border: 2px solid var(--orange-border); border-radius: var(--radius-lg);
+    padding: 14px 16px; margin-bottom: 16px; display: none;
+  }
+  .reprise-card.visible { display: block; }
+  .reprise-title { font-size: 13px; font-weight: 700; color: var(--orange); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .reprise-info { font-size: 13px; color: var(--text); margin-bottom: 10px; line-height: 1.6; }
+  .reprise-info strong { color: var(--blue); }
+  .reprise-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn-reprise { padding: 10px; border-radius: var(--radius); font-size: 13px; font-weight: 600; cursor: pointer; border: none; text-align: center; }
+  .btn-reprise-oui { background: var(--blue); color: white; }
+  .btn-reprise-non { background: var(--gray-bg); color: var(--text); border: 1px solid var(--gray-border); }
+
+  /* ─── BOUTONS ─── */
   .btn-primary { background: var(--blue); color: white; border: none; border-radius: var(--radius); padding: 14px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 20px; transition: opacity 0.15s; }
   .btn-primary:active { opacity: 0.8; }
   .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary.rentree { background: var(--rentree); }
 
-  .progress-wrap { margin: 0 0 16px; }
+  /* ─── BADGE TYPE ─── */
+  .type-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px;
+  }
+  .type-badge.sortie { background: var(--sortie-bg); color: var(--sortie); border: 1px solid var(--sortie-border); }
+  .type-badge.rentree { background: var(--rentree-bg); color: var(--rentree); border: 1px solid var(--rentree-border); }
+
+  /* ─── PROGRESS ─── */
+  .progress-wrap { margin: 0 0 12px; }
   .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
   .progress-label { font-size: 12px; color: var(--text-muted); }
   .progress-bar { background: var(--gray-bg); border-radius: 99px; height: 7px; overflow: hidden; }
-  .progress-fill { background: var(--blue); height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+  .progress-fill { height: 100%; border-radius: 99px; transition: width 0.4s ease; }
+  .progress-fill.sortie { background: var(--sortie); }
+  .progress-fill.rentree { background: var(--rentree); }
 
-  .info-row { display: flex; align-items: center; gap: 8px; background: white; border: 1px solid var(--gray-border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; font-size: 13px; color: var(--text-muted); }
+  /* ─── INFO ROW ─── */
+  .info-row { display: flex; align-items: center; gap: 8px; background: white; border: 1px solid var(--gray-border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 8px; font-size: 13px; color: var(--text-muted); }
   .info-row .val { font-weight: 600; margin-left: auto; color: var(--text); font-size: 14px; }
 
-  .addr-card { background: white; border: 1px solid var(--gray-border); border-radius: var(--radius-lg); padding: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; transition: border-color 0.15s, opacity 0.15s; }
-  .addr-card.clickable { cursor: pointer; }
-  .addr-card.clickable:active { opacity: 0.85; }
-  .addr-card.done { opacity: 0.55; }
-  .addr-card.locked { opacity: 0.38; }
-  .addr-card.active-card { border-color: var(--blue); border-width: 2px; }
+  /* ─── ADRESSES — toutes cliquables ─── */
+  .addr-card {
+    background: white; border: 1px solid var(--gray-border);
+    border-radius: var(--radius-lg); padding: 14px;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 12px;
+    cursor: pointer; transition: border-color 0.15s, opacity 0.15s;
+  }
+  .addr-card:active { opacity: 0.85; }
+  .addr-card.done { opacity: 0.52; cursor: default; }
+  .addr-card.done:active { opacity: 0.52; }
+  /* Pas de "locked" — toutes les adresses sont accessibles */
 
   .step-badge { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; background: var(--gray-bg); color: var(--text-muted); border: 1px solid var(--gray-border); }
   .step-badge.done { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
-  .step-badge.active { background: var(--blue); color: white; border-color: var(--blue); }
+  .step-badge.sortie-active { background: var(--sortie); color: white; border-color: var(--sortie); }
+  .step-badge.rentree-active { background: var(--rentree); color: white; border-color: var(--rentree); }
 
   .addr-info { flex: 1; min-width: 0; }
   .addr-name { font-size: 14px; font-weight: 600; line-height: 1.3; }
@@ -66,15 +124,19 @@
   .addr-anomaly { font-size: 11px; color: #8a4a00; margin-top: 3px; font-weight: 500; }
   .addr-icon { font-size: 20px; flex-shrink: 0; }
 
+  /* ─── ÉCRAN ACTION ─── */
   .action-center { text-align: center; padding: 8px 0; }
-  .action-pin { font-size: 44px; margin-bottom: 8px; }
-  .action-addr { font-size: 20px; font-weight: 700; color: var(--blue); line-height: 1.25; margin-bottom: 4px; }
+  .action-pin { font-size: 44px; margin-bottom: 6px; }
+  .action-type-badge { margin-bottom: 10px; }
+  .action-addr { font-size: 20px; font-weight: 700; line-height: 1.25; margin-bottom: 4px; }
+  .action-addr.sortie { color: var(--sortie); }
+  .action-addr.rentree { color: var(--rentree); }
   .action-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 
   .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .btn-ok, .btn-ko { border: none; border-radius: var(--radius-lg); padding: 20px 10px; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 7px; transition: opacity 0.15s, transform 0.1s; }
   .btn-ok:active, .btn-ko:active { transform: scale(0.97); opacity: 0.85; }
-  .btn-ok { background: #1b5e20; color: white; }
+  .btn-ok { background: var(--green-dark); color: white; }
   .btn-ko { background: var(--red); color: white; }
   .btn-ok .bico, .btn-ko .bico { font-size: 30px; }
   .btn-ok .bsub, .btn-ko .bsub { font-size: 11px; opacity: 0.75; font-weight: 400; }
@@ -84,7 +146,6 @@
   .anomaly-panel.visible { display: block; }
   .anomaly-panel label { color: var(--orange); font-weight: 600; margin-top: 0; }
   .anomaly-panel label:not(:first-child) { margin-top: 12px; }
-
   .chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
   .chip { padding: 10px 8px; font-size: 12px; border-radius: var(--radius); border: 1px solid var(--orange-border); background: white; cursor: pointer; text-align: center; font-weight: 600; color: var(--orange); line-height: 1.3; }
   .chip:active { opacity: 0.8; }
@@ -92,21 +153,14 @@
 
   /* ─── PHOTO ─── */
   .photo-zone { margin-top: 12px; }
-  .photo-btn {
-    width: 100%; padding: 11px; border: 2px dashed var(--orange-border);
-    border-radius: var(--radius); background: white; color: var(--orange);
-    font-size: 14px; font-weight: 600; cursor: pointer; display: flex;
-    align-items: center; justify-content: center; gap: 8px;
-    transition: background 0.1s, border-color 0.1s;
-  }
-  .photo-btn:active { background: var(--orange-bg); }
-  .photo-btn.has-photo { border-style: solid; border-color: #1b5e20; color: #1b5e20; background: var(--green-bg); }
+  .photo-btn { width: 100%; padding: 11px; border: 2px dashed var(--orange-border); border-radius: var(--radius); background: white; color: var(--orange); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .photo-btn.has-photo { border-style: solid; border-color: var(--green-dark); color: var(--green-dark); background: var(--green-bg); }
   .photo-preview-wrap { margin-top: 8px; position: relative; display: none; }
   .photo-preview-wrap.visible { display: block; }
   .photo-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--gray-border); display: block; }
   .photo-delete { position: absolute; top: 6px; right: 6px; background: rgba(125,31,31,0.85); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
-  .btn-confirm-ko { background: var(--red); color: white; border: none; border-radius: var(--radius); padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px; transition: opacity 0.15s; }
+  .btn-confirm-ko { background: var(--red); color: white; border: none; border-radius: var(--radius); padding: 12px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; margin-top: 12px; }
   .btn-confirm-ko:disabled { opacity: 0.35; cursor: not-allowed; }
   .btn-confirm-ko:active { opacity: 0.8; }
 
@@ -131,6 +185,7 @@
   .badge-ok { background: var(--green-bg); color: var(--green); }
   .badge-ko { background: #f8d7da; color: #721c24; }
 
+  /* ─── SPINNER ─── */
   .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 16px; }
   .spinner { width: 40px; height: 40px; border: 3px solid var(--gray-border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -141,7 +196,7 @@
 <body>
 <div class="app">
 
-  <div class="app-header" id="app-header">
+  <div class="app-header default" id="app-header">
     <span class="logo">🗑️</span>
     <div><h1>SorteurPro</h1><div class="sub">Gestion des tournées</div></div>
   </div>
@@ -152,15 +207,41 @@
       <div class="spinner"></div>
       <div class="loading-text">Chargement des tournées…</div>
     </div>
+
     <div id="login-form">
+      <!-- Carte de reprise de tournée -->
+      <div class="reprise-card" id="reprise-card">
+        <div class="reprise-title">🔄 Tournée en cours détectée</div>
+        <div class="reprise-info" id="reprise-info"></div>
+        <div class="reprise-btns">
+          <button class="btn-reprise btn-reprise-oui" onclick="reprendretournee()">↩️ Reprendre</button>
+          <button class="btn-reprise btn-reprise-non" onclick="ignorerReprise()">✕ Nouvelle tournée</button>
+        </div>
+      </div>
+
       <label>Prénom</label>
       <input type="text" id="inp-prenom" placeholder="Ex : Jean" autocomplete="given-name">
       <label>Nom</label>
       <input type="text" id="inp-nom" placeholder="Ex : Dupont" autocomplete="family-name">
       <label>Numéro de tournée</label>
       <select id="sel-tournee"><option value="">— Chargement… —</option></select>
-      <div class="error-msg" id="login-error">Veuillez remplir tous les champs.</div>
-      <button class="btn-primary" onclick="startTournee()">Démarrer la tournée →</button>
+
+      <label>Type de passage</label>
+      <div class="type-grid">
+        <div class="type-btn" id="btn-sortie" onclick="selectType('sortie')">
+          <span class="t-icon">📤</span>
+          <span class="t-lbl">Sortie</span>
+          <span class="t-sub">Sortir les bacs</span>
+        </div>
+        <div class="type-btn" id="btn-rentree" onclick="selectType('rentree')">
+          <span class="t-icon">📥</span>
+          <span class="t-lbl">Rentrée</span>
+          <span class="t-sub">Rentrer les bacs</span>
+        </div>
+      </div>
+
+      <div class="error-msg" id="login-error">Veuillez remplir tous les champs et choisir un type de passage.</div>
+      <button class="btn-primary" id="btn-demarrer" onclick="startTournee()">Démarrer la tournée →</button>
     </div>
   </div>
 
@@ -169,6 +250,11 @@
     <div class="info-row">
       <span>⏱</span> Début de tournée
       <span class="val" id="list-start-time">—</span>
+    </div>
+    <div class="info-row" id="list-type-row">
+      <span id="list-type-icon"></span>
+      <span id="list-type-label"></span>
+      <span class="val" id="list-type-badge"></span>
     </div>
     <div class="progress-wrap">
       <div class="progress-header">
@@ -183,28 +269,25 @@
   <!-- ══ ACTION ══ -->
   <div id="screen-action" class="screen">
     <div class="action-center">
-      <div class="action-pin">📍</div>
+      <div class="action-pin" id="action-pin">📍</div>
+      <div class="action-type-badge" id="action-type-badge"></div>
       <div class="action-addr" id="action-addr-name"></div>
       <div class="action-sub" id="action-addr-sub"></div>
       <div class="btn-grid">
         <button class="btn-ok" onclick="validateAddr(false)">
           <span class="bico">✅</span><span>OK</span>
-          <span class="bsub">Collecte effectuée</span>
+          <span class="bsub" id="ok-sub-label">Effectué</span>
         </button>
         <button class="btn-ko" onclick="toggleAnomalyPanel()">
           <span class="bico">⚠️</span><span>Anomalie</span>
           <span class="bsub">Signaler un problème</span>
         </button>
       </div>
-
       <div class="anomaly-panel" id="anomaly-panel">
         <label>Type d'anomalie *</label>
         <div class="chips" id="anomaly-chips"></div>
-
         <label>Commentaire (optionnel)</label>
         <textarea id="anomaly-text" placeholder="Précisez si nécessaire…"></textarea>
-
-        <!-- ZONE PHOTO -->
         <div class="photo-zone">
           <label>Photo (optionnelle)</label>
           <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)">
@@ -212,11 +295,10 @@
             <span>📷</span><span>Prendre une photo</span>
           </button>
           <div class="photo-preview-wrap" id="photo-preview-wrap">
-            <img id="photo-preview" class="photo-preview" src="" alt="Aperçu photo">
-            <button class="photo-delete" onclick="deletePhoto()" title="Supprimer la photo">✕</button>
+            <img id="photo-preview" class="photo-preview" src="" alt="Aperçu">
+            <button class="photo-delete" onclick="deletePhoto()">✕</button>
           </div>
         </div>
-
         <button class="btn-confirm-ko" id="btn-confirm-ko" onclick="validateAddr(true)" disabled>
           Confirmer l'anomalie et continuer →
         </button>
@@ -227,8 +309,8 @@
   <!-- ══ FIN ══ -->
   <div id="screen-finish" class="screen">
     <div class="finish-hero">
-      <div class="finish-icon">🎉</div>
-      <div class="finish-title">Circuit complété !</div>
+      <div class="finish-icon" id="finish-icon">🎉</div>
+      <div class="finish-title" id="finish-title">Circuit complété !</div>
       <div class="finish-date" id="finish-date"></div>
     </div>
     <div class="stats-grid">
@@ -245,26 +327,71 @@
 </div>
 
 <script>
+// ═══════════════════════════════════════════
+//  CONSTANTES
+// ═══════════════════════════════════════════
 const ANOMALY_TYPES = [
-  { id: "bac_absent",      label: "🗑️ Bac non sorti" },
-  { id: "acces_bloque",    label: "🚧 Accès bloqué" },
-  { id: "bac_endommage",   label: "🔨 Bac endommagé" },
-  { id: "bac_plein",       label: "🔴 Bac trop plein" },
-  { id: "mauvais_tri",     label: "♻️ Mauvais tri" },
-  { id: "bac_non_rentre",  label: "↩️ Non rentré (AM)" },
-  { id: "adresse_absente", label: "❓ Adresse introuvable" },
-  { id: "autre",           label: "📝 Autre" },
+  { id:"bac_absent",      label:"🗑️ Bac non sorti" },
+  { id:"acces_bloque",    label:"🚧 Accès bloqué" },
+  { id:"bac_endommage",   label:"🔨 Bac endommagé" },
+  { id:"bac_plein",       label:"🔴 Bac trop plein" },
+  { id:"mauvais_tri",     label:"♻️ Mauvais tri" },
+  { id:"bac_non_rentre",  label:"↩️ Non rentré" },
+  { id:"adresse_absente", label:"❓ Adresse introuvable" },
+  { id:"autre",           label:"📝 Autre" },
 ];
+const STORAGE_KEY = 'sorteurpro_session';
 
+// ═══════════════════════════════════════════
+//  ÉTAT
+// ═══════════════════════════════════════════
 let TOURNEES = {};
-let session = { agent: "", tourneeId: "", tourneeData: null, startTime: null, endTime: null, currentIdx: 0, results: [] };
-let selectedAnomalyId = null;
-let currentPhotoBase64 = null;
+let session = {
+  agent:"", tourneeId:"", tourneeData:null, typeTournee:null,
+  startTime:null, endTime:null, results:{}
+  // results = { [index]: { timestamp, anomalie, anomalieType, commentaire, photo } }
+  // Clé = index de l'adresse → permet validation dans n'importe quel ordre
+};
+let selectedAnomalyId   = null;
+let currentPhotoBase64  = null;
+let currentActionIdx    = null; // Index de l'adresse en cours de validation
+let selectedTypeTournee = null;
 
-// ─── CHARGEMENT TOURNÉES ───
+// ═══════════════════════════════════════════
+//  PERSISTANCE SESSION (reprise après déco)
+// ═══════════════════════════════════════════
+function saveSession() {
+  try {
+    const toSave = {
+      agent:       session.agent,
+      tourneeId:   session.tourneeId,
+      typeTournee: session.typeTournee,
+      startTime:   session.startTime ? session.startTime.toISOString() : null,
+      results:     session.results
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+  } catch(e) {}
+}
+
+function clearSavedSession() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+}
+
+function loadSavedSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+// ═══════════════════════════════════════════
+//  CHARGEMENT DES TOURNÉES
+// ═══════════════════════════════════════════
 async function loadTournees() {
   document.getElementById('loading-tournees').style.display = 'flex';
-  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('login-form').style.display      = 'none';
+
   try {
     const res = await fetch('/api/tournees');
     if (!res.ok) throw new Error();
@@ -280,11 +407,76 @@ async function loadTournees() {
     TOURNEES = {};
     document.getElementById('sel-tournee').innerHTML = '<option value="">Erreur de chargement</option>';
   }
+
   document.getElementById('loading-tournees').style.display = 'none';
-  document.getElementById('login-form').style.display = 'block';
+  document.getElementById('login-form').style.display       = 'block';
+
+  // Vérifie si une session sauvegardée existe
+  checkReprise();
 }
 
-// ─── NAVIGATION ───
+// ═══════════════════════════════════════════
+//  REPRISE DE TOURNÉE
+// ═══════════════════════════════════════════
+function checkReprise() {
+  const saved = loadSavedSession();
+  if (!saved || !saved.agent || !saved.tourneeId || !TOURNEES[saved.tourneeId]) return;
+
+  const nbFaits = Object.keys(saved.results || {}).length;
+  const total   = TOURNEES[saved.tourneeId].addresses.length;
+  if (nbFaits === 0) { clearSavedSession(); return; }
+
+  const typeLabel = saved.typeTournee === 'sortie' ? '📤 Sortie' : '📥 Rentrée';
+  document.getElementById('reprise-info').innerHTML =
+    `<strong>${saved.agent}</strong> · ${saved.tourneeId} · ${typeLabel}<br>` +
+    `${nbFaits} / ${total} adresses déjà validées`;
+  document.getElementById('reprise-card').classList.add('visible');
+}
+
+function reprendretournee() {
+  const saved = loadSavedSession();
+  if (!saved || !TOURNEES[saved.tourneeId]) return;
+
+  session.agent       = saved.agent;
+  session.tourneeId   = saved.tourneeId;
+  session.tourneeData = TOURNEES[saved.tourneeId];
+  session.typeTournee = saved.typeTournee;
+  session.startTime   = saved.startTime ? new Date(saved.startTime) : new Date();
+  session.results     = saved.results || {};
+
+  applyTypeTournee();
+  document.getElementById('list-start-time').textContent = fmt(session.startTime);
+  setListTypeInfo();
+  renderList();
+  showScreen('screen-list');
+}
+
+function ignorerReprise() {
+  clearSavedSession();
+  document.getElementById('reprise-card').classList.remove('visible');
+}
+
+// ═══════════════════════════════════════════
+//  SÉLECTION DU TYPE DE TOURNÉE
+// ═══════════════════════════════════════════
+function selectType(type) {
+  selectedTypeTournee = type;
+  document.getElementById('btn-sortie').className  = 'type-btn' + (type === 'sortie'  ? ' selected-sortie'  : '');
+  document.getElementById('btn-rentree').className = 'type-btn' + (type === 'rentree' ? ' selected-rentree' : '');
+  const btn = document.getElementById('btn-demarrer');
+  btn.className = 'btn-primary' + (type === 'rentree' ? ' rentree' : '');
+}
+
+function applyTypeTournee() {
+  const hdr = document.getElementById('app-header');
+  hdr.className = 'app-header ' + (session.typeTournee || 'default');
+  const fill = document.getElementById('prog-fill');
+  if (fill) fill.className = 'progress-fill ' + (session.typeTournee || 'sortie');
+}
+
+// ═══════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -293,6 +485,8 @@ function showScreen(id) {
 
 function setHeader(title, sub, showBack, backFn) {
   const hdr = document.getElementById('app-header');
+  const type = session.typeTournee || 'default';
+  hdr.className = 'app-header ' + type;
   hdr.innerHTML = '';
   if (showBack) {
     const btn = document.createElement('button');
@@ -300,7 +494,8 @@ function setHeader(title, sub, showBack, backFn) {
     hdr.appendChild(btn);
   } else {
     const logo = document.createElement('span');
-    logo.className = 'logo'; logo.textContent = '🗑️';
+    logo.className = 'logo';
+    logo.textContent = session.typeTournee === 'sortie' ? '📤' : session.typeTournee === 'rentree' ? '📥' : '🗑️';
     hdr.appendChild(logo);
   }
   const div = document.createElement('div');
@@ -308,47 +503,71 @@ function setHeader(title, sub, showBack, backFn) {
   hdr.appendChild(div);
 }
 
-// ─── UTILS ───
+// ═══════════════════════════════════════════
+//  UTILITAIRES
+// ═══════════════════════════════════════════
 function fmt(dt) {
   if (!dt) return '—';
-  return new Date(dt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return new Date(dt).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
 }
 function fmtDuree(ms) {
-  const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
-  if (h > 0) return `${h}h ${m % 60}min`;
-  return `${m}min ${s % 60}s`;
+  const s = Math.floor(ms/1000), m = Math.floor(s/60), h = Math.floor(m/60);
+  if (h > 0) return `${h}h ${m%60}min`;
+  return `${m}min ${s%60}s`;
 }
 function anomalyLabel(id) {
   const a = ANOMALY_TYPES.find(x => x.id === id);
   return a ? a.label : 'Anomalie';
 }
+function typeBadgeHtml(type) {
+  return type === 'sortie'
+    ? `<span class="type-badge sortie">📤 Sortie des bacs</span>`
+    : `<span class="type-badge rentree">📥 Rentrée des bacs</span>`;
+}
 
-// ─── DÉMARRAGE ───
+// ═══════════════════════════════════════════
+//  DÉMARRAGE
+// ═══════════════════════════════════════════
 function startTournee() {
   const prenom = document.getElementById('inp-prenom').value.trim();
   const nom    = document.getElementById('inp-nom').value.trim();
   const tid    = document.getElementById('sel-tournee').value;
   const err    = document.getElementById('login-error');
-  if (!prenom || !nom || !tid) { err.style.display = 'block'; return; }
+
+  if (!prenom || !nom || !tid || !selectedTypeTournee) { err.style.display='block'; return; }
   err.style.display = 'none';
+  clearSavedSession();
 
   session.agent       = `${prenom} ${nom}`;
   session.tourneeId   = tid;
   session.tourneeData = TOURNEES[tid];
+  session.typeTournee = selectedTypeTournee;
   session.startTime   = new Date();
-  session.currentIdx  = 0;
-  session.results     = session.tourneeData.addresses.map(() => null);
+  session.results     = {};
 
-  setHeader(session.tourneeData.label, session.agent, false, null);
+  saveSession();
+  applyTypeTournee();
   document.getElementById('list-start-time').textContent = fmt(session.startTime);
+  setListTypeInfo();
   renderList();
   showScreen('screen-list');
 }
 
-// ─── LISTE ───
+function setListTypeInfo() {
+  const isSortie = session.typeTournee === 'sortie';
+  document.getElementById('list-type-icon').textContent  = isSortie ? '📤' : '📥';
+  document.getElementById('list-type-label').textContent = isSortie ? 'Sortie des bacs' : 'Rentrée des bacs';
+  document.getElementById('list-type-badge').innerHTML   = typeBadgeHtml(session.typeTournee);
+  document.getElementById('prog-fill').className = 'progress-fill ' + session.typeTournee;
+  setHeader(session.tourneeData.label, session.agent, false, null);
+}
+
+// ═══════════════════════════════════════════
+//  LISTE DES ADRESSES
+// ═══════════════════════════════════════════
 function renderList() {
   const addrs = session.tourneeData.addresses;
-  const done  = session.results.filter(r => r !== null).length;
+  const done  = Object.keys(session.results).length;
 
   document.getElementById('list-progress-label').textContent = `${done} / ${addrs.length}`;
   document.getElementById('prog-fill').style.width = `${Math.round(done / addrs.length * 100)}%`;
@@ -357,18 +576,20 @@ function renderList() {
   el.innerHTML = '';
 
   addrs.forEach((addr, i) => {
-    const res      = session.results[i];
-    const isDone   = res !== null;
-    const isActive = i === session.currentIdx && !isDone;
-    const isLocked = i > session.currentIdx && !isDone;
+    const res    = session.results[i];
+    const isDone = res !== undefined;
 
     const card = document.createElement('div');
-    card.className = `addr-card${isDone ? ' done' : ''}${isActive ? ' active-card clickable' : ''}${isLocked ? ' locked' : ''}`;
-    if (isActive) card.onclick = () => openAction(i);
+    card.className = `addr-card${isDone ? ' done' : ''}`;
+    // Toutes les adresses non faites sont cliquables
+    if (!isDone) card.onclick = () => openAction(i);
 
     const badge = document.createElement('div');
-    badge.className = `step-badge${isDone ? ' done' : isActive ? ' active' : ''}`;
+    badge.className = `step-badge${isDone ? ' done' : (' ' + session.typeTournee + '-active')}`;
     badge.textContent = isDone ? '✓' : (i + 1);
+
+    // Si pas encore fait, on enlève la couleur active pour garder neutre
+    if (!isDone) badge.className = 'step-badge';
 
     const info = document.createElement('div');
     info.className = 'addr-info';
@@ -389,42 +610,51 @@ function renderList() {
 
     const icon = document.createElement('div');
     icon.className = 'addr-icon';
-    icon.style.opacity = isLocked ? '0.3' : '1';
-    icon.textContent = isDone && res.anomalie ? '⚠️' : isDone ? '✅' : isActive ? '👉' : '⏳';
+    if (isDone && res.anomalie) icon.textContent = '⚠️';
+    else if (isDone)            icon.textContent = '✅';
+    else                        icon.textContent = '→';
 
     card.appendChild(badge); card.appendChild(info); card.appendChild(icon);
     el.appendChild(card);
   });
 
-  // Scroll vers la prochaine adresse active
+  // Scroll vers la première adresse non faite
   setTimeout(() => {
-    const activeCard = document.querySelector('.active-card');
-    if (activeCard) activeCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const firstPending = document.querySelector('.addr-card:not(.done)');
+    if (firstPending) firstPending.scrollIntoView({ behavior:'smooth', block:'center' });
   }, 100);
 
   if (done === addrs.length) setTimeout(showFinish, 500);
 }
 
-// ─── ACTION ───
+// ═══════════════════════════════════════════
+//  ÉCRAN ACTION
+// ═══════════════════════════════════════════
 function openAction(idx) {
-  session.currentIdx = idx;
+  currentActionIdx = idx;
   const addr = session.tourneeData.addresses[idx];
+  const isSortie = session.typeTournee === 'sortie';
 
   setHeader(
     `Adresse ${idx + 1} / ${session.tourneeData.addresses.length}`,
-    session.tourneeData.label,
-    true,
-    () => { setHeader(session.tourneeData.label, session.agent, false, null); renderList(); showScreen('screen-list'); }
+    session.tourneeData.label, true,
+    () => { setListTypeInfo(); renderList(); showScreen('screen-list'); }
   );
 
-  document.getElementById('action-addr-name').textContent = addr.name;
-  document.getElementById('action-addr-sub').textContent  = addr.sub || '';
+  document.getElementById('action-pin').textContent        = isSortie ? '📤' : '📥';
+  document.getElementById('action-type-badge').innerHTML   = typeBadgeHtml(session.typeTournee);
+  document.getElementById('action-addr-name').textContent  = addr.name;
+  document.getElementById('action-addr-name').className    = `action-addr ${session.typeTournee}`;
+  document.getElementById('action-addr-sub').textContent   = addr.sub || '';
+  document.getElementById('ok-sub-label').textContent      = isSortie ? 'Bac sorti' : 'Bac rentré';
+
   document.getElementById('anomaly-panel').classList.remove('visible');
   document.getElementById('anomaly-text').value = '';
   resetPhoto();
   buildChips();
   selectedAnomalyId = null;
   document.getElementById('btn-confirm-ko').disabled = true;
+
   showScreen('screen-action');
 }
 
@@ -451,12 +681,12 @@ function toggleAnomalyPanel() {
   if (!wasVisible) { buildChips(); resetPhoto(); }
 }
 
-// ─── GESTION PHOTO ───
+// ═══════════════════════════════════════════
+//  GESTION PHOTO
+// ═══════════════════════════════════════════
 function onPhotoSelected(event) {
   const file = event.target.files[0];
   if (!file) return;
-
-  // Redimensionne la photo avant envoi (max 1200px, qualité 0.75)
   const reader = new FileReader();
   reader.onload = function(e) {
     const img = new Image();
@@ -471,8 +701,6 @@ function onPhotoSelected(event) {
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       currentPhotoBase64 = canvas.toDataURL('image/jpeg', 0.75);
-
-      // Affiche l'aperçu
       document.getElementById('photo-preview').src = currentPhotoBase64;
       document.getElementById('photo-preview-wrap').classList.add('visible');
       const btn = document.getElementById('photo-btn');
@@ -496,7 +724,7 @@ function deletePhoto() {
 
 function resetPhoto() {
   currentPhotoBase64 = null;
-  document.getElementById('photo-input').value = '';
+  try { document.getElementById('photo-input').value = ''; } catch(e) {}
   document.getElementById('photo-preview-wrap').classList.remove('visible');
   document.getElementById('photo-preview').src = '';
   const btn = document.getElementById('photo-btn');
@@ -504,7 +732,9 @@ function resetPhoto() {
   btn.innerHTML = '<span>📷</span><span>Prendre une photo</span>';
 }
 
-// ─── VALIDATION ───
+// ═══════════════════════════════════════════
+//  VALIDATION
+// ═══════════════════════════════════════════
 function validateAddr(isAnomalie) {
   if (isAnomalie && !selectedAnomalyId) return;
 
@@ -516,7 +746,10 @@ function validateAddr(isAnomalie) {
     commentaire:  commentaire,
     photo:        isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null
   };
-  session.results[session.currentIdx] = result;
+
+  // Stockage par index — pas d'ordre imposé
+  session.results[currentActionIdx] = result;
+  saveSession(); // Sauvegarde pour reprise éventuelle
 
   // Envoi au serveur
   fetch('/api/validation', {
@@ -526,8 +759,9 @@ function validateAddr(isAnomalie) {
       agent:        session.agent,
       tourneeId:    session.tourneeId,
       tourneeName:  session.tourneeData.label,
-      adresseIndex: session.currentIdx,
-      adresse:      session.tourneeData.addresses[session.currentIdx].name,
+      typeTournee:  session.typeTournee,
+      adresseIndex: currentActionIdx,
+      adresse:      session.tourneeData.addresses[currentActionIdx].name,
       anomalie:     isAnomalie,
       anomalieType: isAnomalie ? selectedAnomalyId : null,
       commentaire:  commentaire,
@@ -537,23 +771,29 @@ function validateAddr(isAnomalie) {
     })
   }).catch(() => {});
 
-  if (session.currentIdx + 1 < session.tourneeData.addresses.length) session.currentIdx++;
-
-  setHeader(session.tourneeData.label, session.agent, false, null);
+  setListTypeInfo();
   showScreen('screen-list');
   renderList();
 }
 
-// ─── FIN ───
+// ═══════════════════════════════════════════
+//  FIN DE TOURNÉE
+// ═══════════════════════════════════════════
 function showFinish() {
   session.endTime = new Date();
   const addrs     = session.tourneeData.addresses;
   const duree     = session.endTime - session.startTime;
-  const anomalies = session.results.filter(r => r && r.anomalie).length;
+  const vals      = Object.values(session.results);
+  const anomalies = vals.filter(r => r.anomalie).length;
+  const isSortie  = session.typeTournee === 'sortie';
+
+  clearSavedSession(); // Tournée terminée → on efface la sauvegarde
 
   setHeader('Tournée terminée', session.agent, false, null);
+  document.getElementById('finish-icon').textContent = isSortie ? '📤' : '📥';
+  document.getElementById('finish-title').textContent = isSortie ? 'Sortie terminée !' : 'Rentrée terminée !';
   document.getElementById('finish-date').textContent =
-    session.endTime.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) +
+    session.endTime.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' }) +
     ' · Début ' + fmt(session.startTime) + ' · Fin ' + fmt(session.endTime);
 
   document.getElementById('stat-total').textContent = addrs.length;
@@ -565,9 +805,16 @@ function showFinish() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type: 'fin_tournee', agent: session.agent, tourneeId: session.tourneeId,
-      startTime: session.startTime.toISOString(), endTime: session.endTime.toISOString(),
-      dureeMs: duree, total: addrs.length, anomalies, timestamp: session.endTime.toISOString()
+      type:        'fin_tournee',
+      agent:       session.agent,
+      tourneeId:   session.tourneeId,
+      typeTournee: session.typeTournee,
+      startTime:   session.startTime.toISOString(),
+      endTime:     session.endTime.toISOString(),
+      dureeMs:     duree,
+      total:       addrs.length,
+      anomalies:   anomalies,
+      timestamp:   session.endTime.toISOString()
     })
   }).catch(() => {});
 
@@ -579,14 +826,14 @@ function showFinish() {
     const row = document.createElement('div');
     row.className = 'detail-row';
     row.innerHTML = `
-      <div class="detail-num">${i + 1}.</div>
+      <div class="detail-num">${i+1}.</div>
       <div class="detail-info">
         <div class="detail-name">${addr.name}</div>
         <div class="detail-time">${fmt(res.timestamp)}</div>
-        ${res.commentaire ? `<div class="detail-comment">${res.commentaire}</div>` : ''}
+        ${res.commentaire?`<div class="detail-comment">${res.commentaire}</div>`:''}
       </div>
-      ${res.photo ? `<img class="detail-photo" src="${res.photo}" alt="Photo anomalie">` : ''}
-      ${res.anomalie ? `<span class="badge badge-ko">⚠️ ${anomalyLabel(res.anomalieType)}</span>` : `<span class="badge badge-ok">✅ OK</span>`}
+      ${res.photo?`<img class="detail-photo" src="${res.photo}" alt="Photo">`:''}
+      ${res.anomalie?`<span class="badge badge-ko">⚠️ ${anomalyLabel(res.anomalieType)}</span>`:`<span class="badge badge-ok">✅ OK</span>`}
     `;
     detail.appendChild(row);
   });
@@ -594,12 +841,26 @@ function showFinish() {
   showScreen('screen-finish');
 }
 
+// ═══════════════════════════════════════════
+//  NOUVELLE TOURNÉE
+// ═══════════════════════════════════════════
 function newTournee() {
-  session = { agent: '', tourneeId: '', tourneeData: null, startTime: null, endTime: null, currentIdx: 0, results: [] };
-  setHeader('SorteurPro', 'Gestion des tournées', false, null);
+  session = { agent:'', tourneeId:'', tourneeData:null, typeTournee:null, startTime:null, endTime:null, results:{} };
+  selectedTypeTournee = null;
+  currentActionIdx    = null;
+  document.getElementById('btn-sortie').className  = 'type-btn';
+  document.getElementById('btn-rentree').className = 'type-btn';
+  document.getElementById('btn-demarrer').className = 'btn-primary';
+  const hdr = document.getElementById('app-header');
+  hdr.className = 'app-header default';
+  hdr.innerHTML = '<span class="logo">🗑️</span><div><h1>SorteurPro</h1><div class="sub">Gestion des tournées</div></div>';
+  checkReprise();
   showScreen('screen-login');
 }
 
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
 loadTournees();
 </script>
 </body>
