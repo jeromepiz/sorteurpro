@@ -6,15 +6,11 @@ const fs = require('fs');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // Augmenté pour les photos base64
+app.use(express.json({ limit: '15mb' })); // Limite augmentée pour les photos base64
 app.use(express.static('.'));
 
 const ONGLETS_A_IGNORER = ['📊 Récapitulatif'];
-const DATA_FILE  = path.join(__dirname, 'data.json');
-const PHOTOS_DIR = path.join(__dirname, 'photos');
-
-// Crée le dossier photos s'il n'existe pas
-if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR);
+const DATA_FILE = path.join(__dirname, 'data.json');
 
 // ─── PERSISTANCE ───
 function loadData() {
@@ -56,21 +52,10 @@ app.get('/api/tournees', (req, res) => {
   catch(err) { res.status(500).json({ error: 'Impossible de lire le fichier Excel.' }); }
 });
 
-// ─── VALIDATION (avec photo optionnelle) ───
+// ─── VALIDATION ───
 app.post('/api/validation', (req, res) => {
-  const { photo, ...rest } = req.body;
-  const entry = { ...rest, receivedAt: new Date().toISOString() };
-
-  // Sauvegarde la photo sur disque si présente
-  if (photo && entry.anomalie) {
-    const photoId  = `${Date.now()}_${entry.tourneeId}_${entry.adresseIndex}`;
-    const photoPath = path.join(PHOTOS_DIR, `${photoId}.jpg`);
-    try {
-      const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
-      fs.writeFileSync(photoPath, Buffer.from(base64Data, 'base64'));
-      entry.photoId = photoId; // Référence stockée sans le base64 brut
-    } catch(e) { console.error('Erreur sauvegarde photo:', e); }
-  }
+  const entry = { ...req.body, receivedAt: new Date().toISOString() };
+  // La photo base64 est stockée directement dans l'entrée
 
   if (entry.type === 'fin_tournee') {
     const idx = db.sessions.findIndex(s =>
@@ -111,14 +96,6 @@ app.post('/api/validation', (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── PHOTO : servie depuis le dossier photos ───
-app.get('/api/photo/:photoId', (req, res) => {
-  const filePath = path.join(PHOTOS_DIR, `${req.params.photoId}.jpg`);
-  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo introuvable' });
-  res.setHeader('Content-Type', 'image/jpeg');
-  res.sendFile(filePath);
-});
-
 // ─── DASHBOARD ───
 app.get('/api/dashboard', (req, res) => {
   const { date } = req.query;
@@ -148,13 +125,32 @@ app.get('/api/dashboard', (req, res) => {
     totalAdresses:     validations.length,
   };
 
+  // Les anomalies incluent la photo base64 directement
   const anomalies = validations.filter(v => v.anomalie).map(v => ({
-    agent: v.agent, tourneeId: v.tourneeId, adresse: v.adresse,
-    anomalieType: v.anomalieType, commentaire: v.commentaire,
-    timestamp: v.timestamp, photoId: v.photoId || null
+    agent:        v.agent,
+    tourneeId:    v.tourneeId,
+    adresse:      v.adresse,
+    anomalieType: v.anomalieType,
+    commentaire:  v.commentaire,
+    timestamp:    v.timestamp,
+    photo:        v.photo || null   // base64 directement
   }));
 
-  res.json({ stats, sessions: sessionsEnrichies, anomalies, validations });
+  // Les validations pour la modal incluent aussi la photo
+  const validationsAvecPhoto = validations.map(v => ({
+    agent:        v.agent,
+    tourneeId:    v.tourneeId,
+    adresse:      v.adresse,
+    adresseIndex: v.adresseIndex,
+    anomalie:     v.anomalie,
+    anomalieType: v.anomalieType,
+    commentaire:  v.commentaire,
+    timestamp:    v.timestamp,
+    startTime:    v.startTime,
+    photo:        v.photo || null   // base64 directement
+  }));
+
+  res.json({ stats, sessions: sessionsEnrichies, anomalies, validations: validationsAvecPhoto });
 });
 
 // ─── EXPORT EXCEL ───
@@ -189,7 +185,7 @@ app.get('/api/export/excel', (req, res) => {
     'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
     'Agent': v.agent, 'Tournée': v.tourneeId, 'Adresse': v.adresse,
     'Type anomalie': v.anomalieType || '', 'Commentaire': v.commentaire || '',
-    'Photo': v.photoId ? `Oui (ID: ${v.photoId})` : 'Non'
+    'Photo': v.photo ? 'Oui' : 'Non'
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(anomData.length ? anomData : [{ 'Info': 'Aucune anomalie' }]), 'Anomalies');
 
