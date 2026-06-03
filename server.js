@@ -6,13 +6,17 @@ const fs = require('fs');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Augmenté pour les photos base64
 app.use(express.static('.'));
 
 const ONGLETS_A_IGNORER = ['📊 Récapitulatif'];
-const DATA_FILE = path.join(__dirname, 'data.json');
+const DATA_FILE  = path.join(__dirname, 'data.json');
+const PHOTOS_DIR = path.join(__dirname, 'photos');
 
-// ─── PERSISTANCE JSON ───
+// Crée le dossier photos s'il n'existe pas
+if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR);
+
+// ─── PERSISTANCE ───
 function loadData() {
   try {
     if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -24,7 +28,7 @@ function saveData(data) {
 }
 let db = loadData();
 
-// ─── LECTURE EXCEL : retourne les tournées avec adresses ───
+// ─── LECTURE EXCEL ───
 function readTournees() {
   const wb = XLSX.readFile(path.join(__dirname, 'tournees_sorteurs.xlsx'));
   const tournees = {};
@@ -48,66 +52,56 @@ function readTournees() {
 
 // ─── TOURNÉES ───
 app.get('/api/tournees', (req, res) => {
-  try {
-    res.json(readTournees());
-  } catch(err) {
-    console.error('Erreur Excel:', err);
-    res.status(500).json({ error: 'Impossible de lire le fichier Excel.' });
-  }
+  try { res.json(readTournees()); }
+  catch(err) { res.status(500).json({ error: 'Impossible de lire le fichier Excel.' }); }
 });
 
-// ─── VALIDATION ───
+// ─── VALIDATION (avec photo optionnelle) ───
 app.post('/api/validation', (req, res) => {
-  const entry = { ...req.body, receivedAt: new Date().toISOString() };
+  const { photo, ...rest } = req.body;
+  const entry = { ...rest, receivedAt: new Date().toISOString() };
+
+  // Sauvegarde la photo sur disque si présente
+  if (photo && entry.anomalie) {
+    const photoId  = `${Date.now()}_${entry.tourneeId}_${entry.adresseIndex}`;
+    const photoPath = path.join(PHOTOS_DIR, `${photoId}.jpg`);
+    try {
+      const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
+      fs.writeFileSync(photoPath, Buffer.from(base64Data, 'base64'));
+      entry.photoId = photoId; // Référence stockée sans le base64 brut
+    } catch(e) { console.error('Erreur sauvegarde photo:', e); }
+  }
 
   if (entry.type === 'fin_tournee') {
     const idx = db.sessions.findIndex(s =>
-      s.agent === entry.agent &&
-      s.tourneeId === entry.tourneeId &&
-      s.startTime === entry.startTime
+      s.agent === entry.agent && s.tourneeId === entry.tourneeId && s.startTime === entry.startTime
     );
     if (idx >= 0) db.sessions[idx] = { ...db.sessions[idx], ...entry, status: 'terminee' };
     else db.sessions.push({ ...entry, status: 'terminee' });
 
   } else {
     db.validations.push(entry);
-
     const idx = db.sessions.findIndex(s =>
-      s.agent === entry.agent &&
-      s.tourneeId === entry.tourneeId &&
-      s.startTime === entry.startTime
+      s.agent === entry.agent && s.tourneeId === entry.tourneeId && s.startTime === entry.startTime
     );
-
     if (idx < 0) {
-      // Nouvelle session : on récupère le nombre total d'adresses depuis l'Excel
       let totalAdresses = null;
       try {
         const tournees = readTournees();
-        if (tournees[entry.tourneeId]) {
-          totalAdresses = tournees[entry.tourneeId].addresses.length;
-        }
+        if (tournees[entry.tourneeId]) totalAdresses = tournees[entry.tourneeId].addresses.length;
       } catch(e) {}
-
       db.sessions.push({
-        agent:        entry.agent,
-        tourneeId:    entry.tourneeId,
-        tourneeName:  entry.tourneeName,
-        startTime:    entry.startTime,
-        status:       'en_cours',
-        totalAdresses: totalAdresses,  // ← stocké dès la création
-        validations:  [entry]
+        agent: entry.agent, tourneeId: entry.tourneeId, tourneeName: entry.tourneeName,
+        startTime: entry.startTime, status: 'en_cours',
+        totalAdresses, validations: [entry]
       });
     } else {
       if (!db.sessions[idx].validations) db.sessions[idx].validations = [];
       db.sessions[idx].validations.push(entry);
-
-      // Si le total n'était pas encore connu, on le résout maintenant
       if (!db.sessions[idx].totalAdresses) {
         try {
           const tournees = readTournees();
-          if (tournees[entry.tourneeId]) {
-            db.sessions[idx].totalAdresses = tournees[entry.tourneeId].addresses.length;
-          }
+          if (tournees[entry.tourneeId]) db.sessions[idx].totalAdresses = tournees[entry.tourneeId].addresses.length;
         } catch(e) {}
       }
     }
@@ -117,40 +111,34 @@ app.post('/api/validation', (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── PHOTO : servie depuis le dossier photos ───
+app.get('/api/photo/:photoId', (req, res) => {
+  const filePath = path.join(PHOTOS_DIR, `${req.params.photoId}.jpg`);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Photo introuvable' });
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.sendFile(filePath);
+});
+
 // ─── DASHBOARD ───
 app.get('/api/dashboard', (req, res) => {
   const { date } = req.query;
   let sessions    = db.sessions;
   let validations = db.validations;
-
   if (date) {
     sessions    = sessions.filter(s => s.startTime && s.startTime.startsWith(date));
     validations = validations.filter(v => v.timestamp && v.timestamp.startsWith(date));
   }
 
-  // Résout le total depuis l'Excel pour les sessions qui ne l'ont pas encore
   let tournees = null;
   const sessionsEnrichies = sessions.map(s => {
     const vals      = validations.filter(v => v.agent === s.agent && v.tourneeId === s.tourneeId && v.startTime === s.startTime);
     const anomalies = vals.filter(v => v.anomalie);
-
-    // Priorité : totalAdresses stocké → Excel → null
     let total = s.totalAdresses || s.total || null;
     if (!total) {
-      if (!tournees) {
-        try { tournees = readTournees(); } catch(e) { tournees = {}; }
-      }
+      if (!tournees) { try { tournees = readTournees(); } catch(e) { tournees = {}; } }
       if (tournees[s.tourneeId]) total = tournees[s.tourneeId].addresses.length;
     }
-
-    return {
-      ...s,
-      total,
-      nbValidations: vals.length,
-      nbAnomalies:   anomalies.length,
-      status:        s.endTime ? 'terminee' : 'en_cours',
-      progression:   vals.length
-    };
+    return { ...s, total, nbValidations: vals.length, nbAnomalies: anomalies.length, status: s.endTime ? 'terminee' : 'en_cours' };
   });
 
   const stats = {
@@ -161,12 +149,9 @@ app.get('/api/dashboard', (req, res) => {
   };
 
   const anomalies = validations.filter(v => v.anomalie).map(v => ({
-    agent:        v.agent,
-    tourneeId:    v.tourneeId,
-    adresse:      v.adresse,
-    anomalieType: v.anomalieType,
-    commentaire:  v.commentaire,
-    timestamp:    v.timestamp
+    agent: v.agent, tourneeId: v.tourneeId, adresse: v.adresse,
+    anomalieType: v.anomalieType, commentaire: v.commentaire,
+    timestamp: v.timestamp, photoId: v.photoId || null
   }));
 
   res.json({ stats, sessions: sessionsEnrichies, anomalies, validations });
@@ -187,40 +172,33 @@ app.get('/api/export/excel', (req, res) => {
   const sessData = sessions.map(s => {
     const vals = validations.filter(v => v.agent === s.agent && v.tourneeId === s.tourneeId && v.startTime === s.startTime);
     return {
-      'Agent':             s.agent,
-      'Tournée':           s.tourneeId,
-      'Date':              s.startTime ? new Date(s.startTime).toLocaleDateString('fr-FR') : '',
-      'Heure début':       s.startTime ? new Date(s.startTime).toLocaleTimeString('fr-FR') : '',
-      'Heure fin':         s.endTime   ? new Date(s.endTime).toLocaleTimeString('fr-FR') : 'En cours',
-      'Durée (min)':       s.endTime   ? Math.round((new Date(s.endTime) - new Date(s.startTime)) / 60000) : '',
-      'Adresses traitées': vals.length,
-      'Total adresses':    s.totalAdresses || s.total || '',
-      'Anomalies':         vals.filter(v => v.anomalie).length,
-      'Statut':            s.endTime ? 'Terminée' : 'En cours'
+      'Agent': s.agent, 'Tournée': s.tourneeId,
+      'Date': s.startTime ? new Date(s.startTime).toLocaleDateString('fr-FR') : '',
+      'Heure début': s.startTime ? new Date(s.startTime).toLocaleTimeString('fr-FR') : '',
+      'Heure fin': s.endTime ? new Date(s.endTime).toLocaleTimeString('fr-FR') : 'En cours',
+      'Durée (min)': s.endTime ? Math.round((new Date(s.endTime) - new Date(s.startTime)) / 60000) : '',
+      'Adresses traitées': vals.length, 'Total adresses': s.totalAdresses || '',
+      'Anomalies': vals.filter(v => v.anomalie).length,
+      'Statut': s.endTime ? 'Terminée' : 'En cours'
     };
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sessData), 'Tournées');
 
   const anomData = validations.filter(v => v.anomalie).map(v => ({
-    'Date':          v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
-    'Heure':         v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
-    'Agent':         v.agent,
-    'Tournée':       v.tourneeId,
-    'Adresse':       v.adresse,
-    'Type anomalie': v.anomalieType || '',
-    'Commentaire':   v.commentaire || ''
+    'Date': v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
+    'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
+    'Agent': v.agent, 'Tournée': v.tourneeId, 'Adresse': v.adresse,
+    'Type anomalie': v.anomalieType || '', 'Commentaire': v.commentaire || '',
+    'Photo': v.photoId ? `Oui (ID: ${v.photoId})` : 'Non'
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(anomData.length ? anomData : [{ 'Info': 'Aucune anomalie' }]), 'Anomalies');
 
   const detailData = validations.map(v => ({
-    'Date':          v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
-    'Heure':         v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
-    'Agent':         v.agent,
-    'Tournée':       v.tourneeId,
-    'Adresse':       v.adresse,
-    'Statut':        v.anomalie ? 'Anomalie' : 'OK',
-    'Type anomalie': v.anomalieType || '',
-    'Commentaire':   v.commentaire || ''
+    'Date': v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
+    'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
+    'Agent': v.agent, 'Tournée': v.tourneeId, 'Adresse': v.adresse,
+    'Statut': v.anomalie ? 'Anomalie' : 'OK',
+    'Type anomalie': v.anomalieType || '', 'Commentaire': v.commentaire || ''
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailData.length ? detailData : [{ 'Info': 'Aucune donnée' }]), 'Détail validations');
 
@@ -244,6 +222,5 @@ app.get('/api/debug', (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── DÉMARRAGE ───
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('SorteurPro démarré sur le port ' + PORT));
