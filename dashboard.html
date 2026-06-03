@@ -383,7 +383,7 @@ function renderAnomalies(anomalies) {
         <div class="anomalie-adresse">${a.adresse || '—'}</div>
         <div class="anomalie-meta">${a.agent} · ${a.tourneeId} · <strong>${anomLabel(a.anomalieType)}</strong></div>
         ${a.commentaire ? `<div class="anomalie-comment">💬 ${a.commentaire}</div>` : ''}
-        ${a.photoId ? `<img class="anomalie-photo" src="/api/photo/${a.photoId}" alt="Photo anomalie" onclick="openLightbox(this.src)">` : ''}
+        ${a.photo ? `<img class="anomalie-photo" src="${a.photo}" alt="Photo anomalie" onclick="openLightbox(this.src)">` : ''}
       </div>
       <div class="anomalie-time">${fmt(a.timestamp)}</div>
     </div>`).join('');
@@ -478,7 +478,7 @@ function openModal(session, validations) {
           <div class="addr-item-name">${v.adresse}</div>
           <div class="addr-item-time">⏱ ${fmt(v.timestamp)}</div>
           ${isAnom ? `<div class="addr-item-anomaly">${anomLabel(v.anomalieType)}${v.commentaire ? ' — ' + v.commentaire : ''}</div>` : ''}
-          ${isAnom && v.photoId ? `<img src="/api/photo/${v.photoId}" alt="Photo" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:zoom-in;border:1px solid var(--gray-border);" onclick="openLightbox(this.src)">` : ''}
+          ${isAnom && v.photo ? `<img src="${v.photo}" alt="Photo" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:zoom-in;border:1px solid var(--gray-border);" onclick="openLightbox(this.src)">` : ''}
         </div>
         <div class="addr-item-status">
           ${isAnom
