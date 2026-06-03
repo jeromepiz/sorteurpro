@@ -169,6 +169,11 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ─── PHOTO MODAL ─── */
+.anomalie-photo { width: 100%; max-height: 220px; object-fit: cover; border-radius: var(--radius); margin-top: 8px; border: 1px solid var(--gray-border); display: block; cursor: zoom-in; }
+.photo-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 500; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
+.photo-lightbox img { max-width: 95vw; max-height: 90vh; border-radius: 8px; }
+
 /* ─── TOAST ─── */
 .toast { position: fixed; bottom: 24px; right: 24px; background: var(--green-dark); color: white; padding: 12px 20px; border-radius: var(--radius); font-size: 14px; font-weight: 500; opacity: 0; transition: opacity 0.3s; z-index: 999; pointer-events: none; box-shadow: var(--shadow-lg); }
 .toast.show { opacity: 1; }
@@ -374,10 +379,11 @@ function renderAnomalies(anomalies) {
   el.innerHTML = sorted.map(a => `
     <div class="anomalie-row">
       <div style="font-size:20px;flex-shrink:0;margin-top:1px;">⚠️</div>
-      <div class="anomalie-info">
+      <div class="anomalie-info" style="flex:1;min-width:0;">
         <div class="anomalie-adresse">${a.adresse || '—'}</div>
         <div class="anomalie-meta">${a.agent} · ${a.tourneeId} · <strong>${anomLabel(a.anomalieType)}</strong></div>
         ${a.commentaire ? `<div class="anomalie-comment">💬 ${a.commentaire}</div>` : ''}
+        ${a.photoId ? `<img class="anomalie-photo" src="/api/photo/${a.photoId}" alt="Photo anomalie" onclick="openLightbox(this.src)">` : ''}
       </div>
       <div class="anomalie-time">${fmt(a.timestamp)}</div>
     </div>`).join('');
@@ -472,6 +478,7 @@ function openModal(session, validations) {
           <div class="addr-item-name">${v.adresse}</div>
           <div class="addr-item-time">⏱ ${fmt(v.timestamp)}</div>
           ${isAnom ? `<div class="addr-item-anomaly">${anomLabel(v.anomalieType)}${v.commentaire ? ' — ' + v.commentaire : ''}</div>` : ''}
+          ${isAnom && v.photoId ? `<img src="/api/photo/${v.photoId}" alt="Photo" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:zoom-in;border:1px solid var(--gray-border);" onclick="openLightbox(this.src)">` : ''}
         </div>
         <div class="addr-item-status">
           ${isAnom
@@ -521,6 +528,15 @@ function exportExcel() {
 function exportPDF() {
   showToast('📄 Génération du PDF…');
   setTimeout(() => window.print(), 300);
+}
+
+// ─── LIGHTBOX PHOTO ───
+function openLightbox(src) {
+  const lb = document.createElement('div');
+  lb.className = 'photo-lightbox';
+  lb.innerHTML = `<img src="${src}" alt="Photo anomalie">`;
+  lb.onclick = () => lb.remove();
+  document.body.appendChild(lb);
 }
 
 // ─── INIT ───
