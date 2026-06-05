@@ -7,6 +7,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#1a3a5c">
 <title>SorteurPro</title>
+
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SorteurPro">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -862,6 +869,15 @@ function newTournee() {
 //  INIT
 // ═══════════════════════════════════════════
 loadTournees();
+
+// ─── SERVICE WORKER (PWA) ───
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => console.log('SorteurPro PWA prête'))
+      .catch(e => console.warn('SW non enregistré:', e));
+  });
+}
 </script>
 </body>
 </html>
