@@ -34,6 +34,8 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 .btn-green { background: var(--green-dark); color: white; }
 .btn-orange { background: #e65100; color: white; }
 .btn-gray { background: var(--gray-bg); color: var(--text); border: 1px solid var(--gray-border); }
+.btn-blue { background: var(--blue); color: white; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
 .ml-auto { margin-left: auto; }
 
 .main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
@@ -93,6 +95,17 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 .histo-table tr:last-child td { border-bottom: none; }
 .histo-table tr:hover td { background: var(--blue-pale); cursor: pointer; }
 .duration { font-weight: 600; color: var(--blue); }
+
+/* ─── SECTION RAPPORTS PDF ─── */
+.pdf-reports-grid { display: grid; gap: 0; }
+.pdf-report-row { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-bottom: 1px solid var(--gray-bg); transition: background 0.15s; }
+.pdf-report-row:last-child { border-bottom: none; }
+.pdf-report-row:hover { background: var(--blue-pale); }
+.pdf-report-icon { font-size: 26px; flex-shrink: 0; }
+.pdf-report-info { flex: 1; min-width: 0; }
+.pdf-report-name { font-size: 13px; font-weight: 700; color: var(--blue); margin-bottom: 3px; font-family: monospace; }
+.pdf-report-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.pdf-report-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
 /* ─── MODAL ─── */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
@@ -245,6 +258,18 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
     </div>
   </div>
 
+  <!-- ══ SECTION RAPPORTS PDF ANOMALIES ══ -->
+  <div class="panel" id="panel-pdf-reports">
+    <div class="panel-header">
+      <div class="panel-title">
+        📄 Rapports d'anomalies
+        <span class="panel-count" id="count-pdf-reports">0</span>
+      </div>
+      <span style="font-size:11px;color:var(--text-muted);">Générés automatiquement à la fin de chaque tournée</span>
+    </div>
+    <div id="list-pdf-reports"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+  </div>
+
   <div class="panel">
     <div class="panel-header">
       <div class="panel-title">📋 Historique complet</div>
@@ -257,7 +282,7 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
           <th>Début</th><th>Fin</th><th>Durée</th>
           <th>Adresses</th><th>Anomalies</th><th>Statut</th>
         </tr></thead>
-        <tbody id="histo-body"><tr><td colspan="9"><div class="spinner-wrap"><div class="spinner"></div></div></td></tr></tbody>
+        <tbody id="histo-body"><tr><td colspan="10"><div class="spinner-wrap"><div class="spinner"></div></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -292,28 +317,17 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
     </div>
     <div class="pdf-modal-body">
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Sélectionnez les tournées à inclure dans le rapport PDF :</p>
-
       <div class="tournee-select-list" id="tournee-select-list">
         <div class="select-all-row">
           <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)">
           <label for="select-all-cb">Tout sélectionner / désélectionner</label>
         </div>
       </div>
-
       <div class="pdf-options">
         <p style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Options du rapport</p>
-        <label class="pdf-option">
-          <input type="checkbox" id="opt-photos" checked>
-          Inclure les photos des anomalies
-        </label>
-        <label class="pdf-option">
-          <input type="checkbox" id="opt-ok" checked>
-          Inclure les adresses sans anomalie
-        </label>
-        <label class="pdf-option">
-          <input type="checkbox" id="opt-stats" checked>
-          Inclure le résumé statistique
-        </label>
+        <label class="pdf-option"><input type="checkbox" id="opt-photos" checked> Inclure les photos des anomalies</label>
+        <label class="pdf-option"><input type="checkbox" id="opt-ok" checked> Inclure les adresses sans anomalie</label>
+        <label class="pdf-option"><input type="checkbox" id="opt-stats" checked> Inclure le résumé statistique</label>
       </div>
     </div>
     <div class="pdf-modal-footer">
@@ -323,16 +337,14 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
   </div>
 </div>
 
-<!-- Zone d'impression PDF (invisible à l'écran) -->
 <div id="pdf-content"></div>
-
 <div class="toast" id="toast"></div>
 
 <script>
 const ANOMALY_LABELS = {
   bac_absent:'🗑️ Bac non sorti', acces_bloque:'🚧 Accès bloqué',
   bac_endommage:'🔨 Bac endommagé', bac_plein:'🔴 Bac trop plein',
-  mauvais_tri:'♻️ Mauvais tri', bac_non_rentre:'↩️ Non rentré (AM)',
+  mauvais_tri:'♻️ Mauvais tri', bac_non_rentre:'↩️ Non rentré',
   adresse_absente:'❓ Adresse introuvable', autre:'📝 Autre'
 };
 
@@ -346,21 +358,7 @@ function fmtDate(iso) { if(!iso) return '—'; return new Date(iso).toLocaleDate
 function fmtDuree(ms) { if(!ms) return '—'; const m=Math.floor(ms/60000),h=Math.floor(m/60); return h>0?`${h}h ${m%60}min`:`${m} min`; }
 function initials(n)  { return n.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2); }
 function anomLabel(id){ return ANOMALY_LABELS[id]||'⚠️ Anomalie'; }
-function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
-
-// ─── CHARGEMENT ───
-async function loadDashboard() {
-  const date = document.getElementById('filter-date').value;
-  try {
-    const res  = await fetch('/api/dashboard'+(date?`?date=${date}`:''));
-    dashData   = await res.json();
-    renderStats(dashData.stats);
-    renderTournees(dashData.sessions, dashData.validations);
-    renderAnomalies(dashData.anomalies);
-    renderHistorique(dashData.sessions, dashData.validations);
-  } catch(e) { console.error(e); }
-}
-
+function showToast(msg,color){ const t=document.getElementById('toast'); t.textContent=msg; t.style.background=color||''; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
 function typeBadge(type) {
   if (!type) return '';
   return type === 'sortie'
@@ -368,53 +366,148 @@ function typeBadge(type) {
     : `<span class="badge badge-rentree">📥 Rentrée</span>`;
 }
 
+// ─── CHARGEMENT DASHBOARD ───
+async function loadDashboard() {
+  const date = document.getElementById('filter-date').value;
+  try {
+    const res = await fetch('/api/dashboard'+(date?`?date=${date}`:''));
+    dashData  = await res.json();
+    renderStats(dashData.stats);
+    renderTournees(dashData.sessions, dashData.validations);
+    renderAnomalies(dashData.anomalies);
+    renderHistorique(dashData.sessions, dashData.validations);
+  } catch(e) { console.error(e); }
+
+  // Charge aussi les rapports PDF
+  loadPdfReports();
+}
+
+// ─── RAPPORTS PDF ANOMALIES ───
+async function loadPdfReports() {
+  const date = document.getElementById('filter-date').value;
+  const el   = document.getElementById('list-pdf-reports');
+  try {
+    const res  = await fetch('/api/pdf-exports'+(date?`?date=${date}`:''));
+    const reports = await res.json();
+    document.getElementById('count-pdf-reports').textContent = reports.length;
+
+    if (!reports.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">📄</div>Aucun rapport généré pour cette période</div>';
+      return;
+    }
+
+    el.innerHTML = '';
+    reports.forEach(r => {
+      const d = new Date(r.created_at);
+      const heure = d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+      const dateStr = d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'});
+      const type = r.type_tournee === 'sortie' ? '📤 Sortie' : r.type_tournee === 'rentree' ? '📥 Rentrée' : '';
+
+      // Construire le chemin de rangement suggéré
+      const rd = new Date(r.date_tournee + 'T12:00:00');
+      const annee = rd.getFullYear();
+      const mois  = String(rd.getMonth()+1).padStart(2,'0');
+      const jour  = String(rd.getDate()).padStart(2,'0');
+      const folder = `${annee}/${mois}/${jour}/${r.tournee_id}/`;
+
+      const row = document.createElement('div');
+      row.className = 'pdf-report-row';
+      row.innerHTML = `
+        <div class="pdf-report-icon">📄</div>
+        <div class="pdf-report-info">
+          <div class="pdf-report-name">${r.filename}</div>
+          <div class="pdf-report-meta">
+            <span>🚛 ${r.tournee_id}</span>
+            <span>${type}</span>
+            <span>📅 ${dateStr} à ${heure}</span>
+            <span style="color:var(--blue-mid);font-family:monospace;font-size:10px;">📁 ${folder}</span>
+          </div>
+        </div>
+        <div class="pdf-report-actions">
+          <button class="btn btn-blue btn-sm" onclick="downloadPdfReport(${r.id}, '${r.filename}', true)">📷 Avec photos</button>
+          <button class="btn btn-gray btn-sm" onclick="downloadPdfReport(${r.id}, '${r.filename}', false)">Sans photos</button>
+        </div>`;
+      el.appendChild(row);
+    });
+  } catch(e) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Erreur de chargement des rapports</div>';
+  }
+}
+
+function downloadPdfReport(id, filename, withPhotos) {
+  // Construit l'URL avec ou sans photos selon le choix
+  const sessionId = null; // On passe par l'id du pdf_export
+  const url = `/api/pdf-exports/${id}/download?photos=${withPhotos}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.replace('.pdf', '.html');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast(`📄 Téléchargement en cours… Enregistre dans le bon dossier !`);
+}
+
+// ─── STATS ───
 function renderStats(s) {
-  document.getElementById('s-en-cours').textContent  = s.tourneesEnCours  ||0;
-  document.getElementById('s-terminees').textContent = s.tourneesTerminees||0;
-  document.getElementById('s-adresses').textContent  = s.totalAdresses    ||0;
-  document.getElementById('s-anomalies').textContent = s.totalAnomalies   ||0;
+  const sessions = dashData.sessions || [];
+  const enCours  = sessions.filter(s => !s.end_time).length;
+  const terminees= sessions.filter(s =>  s.end_time).length;
+  document.getElementById('s-en-cours').textContent  = enCours;
+  document.getElementById('s-terminees').textContent = terminees;
+  document.getElementById('s-adresses').textContent  = s.total_validations || 0;
+  document.getElementById('s-anomalies').textContent = s.total_anomalies   || 0;
 }
 
 function renderTournees(sessions, validations) {
   const el = document.getElementById('list-tournees');
   document.getElementById('count-tournees').textContent = sessions.length;
   if (!sessions.length) { el.innerHTML='<div class="empty"><div class="empty-icon">🚛</div>Aucune tournée pour cette période</div>'; return; }
-  const sorted = [...sessions].sort((a,b)=>{ if(a.status!==b.status) return a.status==='en_cours'?-1:1; return new Date(b.startTime)-new Date(a.startTime); });
-  el.innerHTML='';
+
+  el.innerHTML = '';
+  const sorted = [...sessions].sort((a,b) => {
+    if (!!a.end_time !== !!b.end_time) return a.end_time ? 1 : -1;
+    return new Date(b.start_time) - new Date(a.start_time);
+  });
+
   sorted.forEach(s => {
-    const vals = validations.filter(v=>v.agent===s.agent&&v.tourneeId===s.tourneeId&&v.startTime===s.startTime);
-    const total=s.total||'?', done=vals.length, pct=total!=='?'?Math.round(done/total*100):0;
-    const anomCount=vals.filter(v=>v.anomalie).length;
-    const badge=s.status==='terminee'?`<span class="badge badge-terminee">✓ Terminée</span>`:`<span class="badge badge-en-cours">⏳ En cours</span>`;
-    const typeBdg=typeBadge(s.typeTournee);
-    const anomBadge=anomCount>0?`<span class="badge badge-anomalie">⚠️ ${anomCount}</span>`:'';
-    const row=document.createElement('div');
-    row.className='tournee-row';
-    row.innerHTML=`
+    const total     = parseInt(s.totaladdresses) || parseInt(s.total_validations) || 0;
+    const done      = parseInt(s.total_validations) || 0;
+    const anomCount = parseInt(s.total_anomalies) || 0;
+    const pct       = total > 0 ? Math.round(done/total*100) : 0;
+    const isTerminee= !!s.end_time;
+    const badge     = isTerminee ? `<span class="badge badge-terminee">✓ Terminée</span>` : `<span class="badge badge-en-cours">⏳ En cours</span>`;
+    const anomBadge = anomCount > 0 ? `<span class="badge badge-anomalie">⚠️ ${anomCount}</span>` : '';
+
+    const row = document.createElement('div');
+    row.className = 'tournee-row';
+    row.innerHTML = `
       <div class="agent-avatar">${initials(s.agent)}</div>
-      <div class="tournee-info"><div class="tournee-agent">${s.agent}</div><div class="tournee-meta">${s.tourneeId} · Début ${fmt(s.startTime)}${s.endTime?' · Fin '+fmt(s.endTime):''}</div></div>
+      <div class="tournee-info">
+        <div class="tournee-agent">${s.agent}</div>
+        <div class="tournee-meta">${s.tournee_id} · Début ${fmt(s.start_time)}${s.end_time?' · Fin '+fmt(s.end_time):''}</div>
+      </div>
       <div class="tournee-right">
-        <div>${badge} ${typeBdg} ${anomBadge}</div>
-        <div class="progress-mini"><div class="progress-mini-fill ${s.status==='terminee'?'done':''}" style="width:${pct}%"></div></div>
-        <div class="progress-txt">${done} / ${total} adresses</div>
+        <div>${badge} ${typeBadge(s.type_tournee)} ${anomBadge}</div>
+        <div class="progress-mini"><div class="progress-mini-fill ${isTerminee?'done':''}" style="width:${pct}%"></div></div>
+        <div class="progress-txt">${done}${total?' / '+total:''} adresses</div>
       </div>
       <div class="chevron">›</div>`;
-    row.onclick=()=>openModal(s,vals);
+    row.onclick = () => openModalBySessionId(s.id);
     el.appendChild(row);
   });
 }
 
 function renderAnomalies(anomalies) {
-  const el=document.getElementById('list-anomalies');
-  document.getElementById('count-anomalies').textContent=anomalies.length;
+  const el = document.getElementById('list-anomalies');
+  document.getElementById('count-anomalies').textContent = anomalies.length;
   if (!anomalies.length) { el.innerHTML='<div class="empty"><div class="empty-icon">✅</div>Aucune anomalie signalée</div>'; return; }
-  const sorted=[...anomalies].sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
-  el.innerHTML=sorted.map(a=>`
+  const sorted = [...anomalies].sort((a,b) => new Date(b.timestamp)-new Date(a.timestamp));
+  el.innerHTML = sorted.map(a => `
     <div class="anomalie-row">
       <div style="font-size:20px;flex-shrink:0;margin-top:1px;">⚠️</div>
       <div class="anomalie-info">
         <div class="anomalie-adresse">${a.adresse||'—'}</div>
-        <div class="anomalie-meta">${a.agent} · ${a.tourneeId} ${typeBadge(a.typeTournee)} · <strong>${anomLabel(a.anomalieType)}</strong></div>
+        <div class="anomalie-meta">${a.agent} · ${a.tournee_id} ${typeBadge(a.type_tournee)} · <strong>${anomLabel(a.anomalie_type)}</strong></div>
         ${a.commentaire?`<div class="anomalie-comment">💬 ${a.commentaire}</div>`:''}
         ${a.photo?`<img class="anomalie-photo" src="${a.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
       </div>
@@ -422,64 +515,84 @@ function renderAnomalies(anomalies) {
     </div>`).join('');
 }
 
-function renderHistorique(sessions, validations) {
-  const tbody=document.getElementById('histo-body');
-  if (!sessions.length) { tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-icon">📋</div>Aucune donnée</div></td></tr>'; return; }
-  const sorted=[...sessions].sort((a,b)=>new Date(b.startTime)-new Date(a.startTime));
-  tbody.innerHTML='';
-  sorted.forEach(s=>{
-    const vals=dashData.validations.filter(v=>v.agent===s.agent&&v.tourneeId===s.tourneeId&&v.startTime===s.startTime);
-    const dureeMs=s.endTime?new Date(s.endTime)-new Date(s.startTime):null;
-    const anomCount=vals.filter(v=>v.anomalie).length;
-    const badge=s.status==='terminee'?`<span class="badge badge-terminee">✓ Terminée</span>`:`<span class="badge badge-en-cours">⏳ En cours</span>`;
-    const typeBdg=typeBadge(s.typeTournee);
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td><strong>${s.agent}</strong></td><td>${s.tourneeId}</td><td>${typeBadge(s.typeTournee)}</td><td>${fmtDate(s.startTime)}</td><td>${fmt(s.startTime)}</td><td>${s.endTime?fmt(s.endTime):'—'}</td><td class="duration">${fmtDuree(dureeMs)}</td><td>${vals.length}${s.total?' / '+s.total:''}</td><td>${anomCount>0?`<span style="color:var(--red);font-weight:700;">⚠️ ${anomCount}</span>`:'<span style="color:var(--green-dark);">0</span>'}</td><td>${badge}</td>`;
-    tr.onclick=()=>openModal(s,vals);
+function renderHistorique(sessions) {
+  const tbody = document.getElementById('histo-body');
+  if (!sessions.length) { tbody.innerHTML='<tr><td colspan="10"><div class="empty"><div class="empty-icon">📋</div>Aucune donnée</div></td></tr>'; return; }
+  const sorted = [...sessions].sort((a,b) => new Date(b.start_time)-new Date(a.start_time));
+  tbody.innerHTML = '';
+  sorted.forEach(s => {
+    const dureeMs   = s.end_time ? new Date(s.end_time)-new Date(s.start_time) : null;
+    const done      = parseInt(s.total_validations)||0;
+    const anomCount = parseInt(s.total_anomalies)||0;
+    const total     = parseInt(s.totaladdresses)||0;
+    const badge     = s.end_time ? `<span class="badge badge-terminee">✓ Terminée</span>` : `<span class="badge badge-en-cours">⏳ En cours</span>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${s.agent}</strong></td>
+      <td>${s.tournee_id}</td>
+      <td>${typeBadge(s.type_tournee)}</td>
+      <td>${fmtDate(s.start_time)}</td>
+      <td>${fmt(s.start_time)}</td>
+      <td>${s.end_time?fmt(s.end_time):'—'}</td>
+      <td class="duration">${fmtDuree(dureeMs)}</td>
+      <td>${done}${total?' / '+total:''}</td>
+      <td>${anomCount>0?`<span style="color:var(--red);font-weight:700;">⚠️ ${anomCount}</span>`:'<span style="color:var(--green-dark);">0</span>'}</td>
+      <td>${badge}</td>`;
+    tr.onclick = () => openModalBySessionId(s.id);
     tbody.appendChild(tr);
   });
 }
 
 // ─── MODAL DÉTAIL ───
+async function openModalBySessionId(sessionId) {
+  try {
+    const res  = await fetch(`/api/session/${sessionId}`);
+    const data = await res.json();
+    openModal(data.session, data.validations);
+  } catch(e) { showToast('Erreur chargement détail', '#c0392b'); }
+}
+
 function openModal(session, validations) {
   currentModalSession = session;
   currentModalVals    = validations;
 
-  document.getElementById('modal-title').textContent=`${session.agent} — ${session.tourneeId}`;
-  const dureeMs=session.endTime?new Date(session.endTime)-new Date(session.startTime):null;
-  document.getElementById('modal-sub').innerHTML=`${fmtDate(session.startTime)} · Début ${fmt(session.startTime)}`+(session.endTime?` · Fin ${fmt(session.endTime)}`:'')+(dureeMs?` · ${fmtDuree(dureeMs)}`:'')+` · ${session.status==='terminee'?'✓ Terminée':'⏳ En cours'} `+typeBadge(session.typeTournee);
+  document.getElementById('modal-title').textContent = `${session.agent} — ${session.tournee_id}`;
+  const dureeMs = session.end_time ? new Date(session.end_time)-new Date(session.start_time) : null;
+  document.getElementById('modal-sub').innerHTML =
+    `${fmtDate(session.start_time)} · Début ${fmt(session.start_time)}`+
+    (session.end_time?` · Fin ${fmt(session.end_time)}`:'')+
+    (dureeMs?` · ${fmtDuree(dureeMs)}`:'')+
+    ` · ${session.end_time?'✓ Terminée':'⏳ En cours'} `+typeBadge(session.type_tournee);
 
-  const total=session.total||validations.length, anomCount=validations.filter(v=>v.anomalie).length;
-  document.getElementById('modal-stats').innerHTML=`
+  const anomCount = validations.filter(v=>v.anomalie).length;
+  const total     = parseInt(session.totaladdresses)||validations.length;
+  document.getElementById('modal-stats').innerHTML = `
     <div class="modal-stat"><div class="modal-stat-val" style="color:var(--blue);">${validations.length}/${total}</div><div class="modal-stat-lbl">Traitées</div></div>
     <div class="modal-stat"><div class="modal-stat-val" style="color:var(--blue);">${total?Math.round(validations.length/total*100):0}%</div><div class="modal-stat-lbl">Avancement</div></div>
     <div class="modal-stat"><div class="modal-stat-val" style="color:var(--green-dark);">${validations.length-anomCount}</div><div class="modal-stat-lbl">OK</div></div>
     <div class="modal-stat"><div class="modal-stat-val" style="color:var(--red);">${anomCount}</div><div class="modal-stat-lbl">Anomalies</div></div>`;
 
-  const tl=document.getElementById('modal-timeline');
-  tl.innerHTML='';
-  if (!validations.length) { tl.innerHTML='<div class="empty"><div class="empty-icon">⏳</div>Aucune adresse validée pour l\'instant</div>'; }
-  else {
-    const sorted=[...validations].filter(v=>v.adresse).sort((a,b)=>(a.adresseIndex||0)-(b.adresseIndex||0));
-    sorted.forEach(v=>{
-      const isAnom=v.anomalie;
-      const item=document.createElement('div');
-      item.className='addr-item';
-      item.innerHTML=`
+  const tl = document.getElementById('modal-timeline');
+  tl.innerHTML = '';
+  if (!validations.length) {
+    tl.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div>Aucune adresse validée pour l\'instant</div>';
+  } else {
+    const sorted = [...validations].filter(v=>v.adresse).sort((a,b)=>(a.adresse_index||0)-(b.adresse_index||0));
+    sorted.forEach(v => {
+      const isAnom = v.anomalie;
+      const item = document.createElement('div');
+      item.className = 'addr-item';
+      item.innerHTML = `
         <div class="timeline-left"><div class="timeline-num ${isAnom?'ko':'ok'}">${isAnom?'⚠':'✓'}</div><div class="timeline-line"></div></div>
         <div class="addr-item-info">
           <div class="addr-item-name">${v.adresse}</div>
           <div class="addr-item-time">⏱ ${fmt(v.timestamp)}</div>
-          ${isAnom?`<div class="addr-item-anomaly">${anomLabel(v.anomalieType)}${v.commentaire?' — '+v.commentaire:''}</div>`:''}
+          ${isAnom?`<div class="addr-item-anomaly">${anomLabel(v.anomalie_type)}${v.commentaire?' — '+v.commentaire:''}</div>`:''}
           ${isAnom&&v.photo?`<img class="addr-item-photo" src="${v.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
         </div>
         <div class="addr-item-status">${isAnom?`<span class="badge badge-anomalie">⚠️</span>`:`<span class="badge badge-terminee">✅ OK</span>`}</div>`;
       tl.appendChild(item);
     });
-    if (session.status!=='terminee'&&session.total>validations.length) {
-      const r=session.total-validations.length;
-      tl.innerHTML+=`<div class="addr-item"><div class="timeline-left"><div class="timeline-num pending">…</div></div><div class="addr-item-info"><div class="addr-item-name" style="color:var(--text-muted);">${r} adresse${r>1?'s':''} restante${r>1?'s':''}</div><div class="addr-item-time">En attente</div></div></div>`;
-    }
   }
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -487,32 +600,31 @@ function openModal(session, validations) {
 function closeModal(e) { if(e.target===document.getElementById('modal-overlay')) closeModalDirect(); }
 function closeModalDirect() { document.getElementById('modal-overlay').classList.remove('open'); }
 
-// ─── MODAL EXPORT PDF ───
+// ─── MODAL EXPORT PDF (impression) ───
 function openPdfModal() {
-  const list=document.getElementById('tournee-select-list');
-  // Garde le select-all row, vide le reste
-  const selectAllRow=list.querySelector('.select-all-row');
-  list.innerHTML='';
+  const list = document.getElementById('tournee-select-list');
+  const selectAllRow = list.querySelector('.select-all-row');
+  list.innerHTML = '';
   list.appendChild(selectAllRow);
-  document.getElementById('select-all-cb').checked=false;
+  document.getElementById('select-all-cb').checked = false;
 
-  const sessions=[...dashData.sessions].sort((a,b)=>new Date(b.startTime)-new Date(a.startTime));
+  const sessions = [...dashData.sessions].sort((a,b)=>new Date(b.start_time)-new Date(a.start_time));
   if (!sessions.length) {
-    list.innerHTML+='<div class="empty" style="padding:16px;">Aucune tournée disponible</div>';
+    list.innerHTML += '<div class="empty" style="padding:16px;">Aucune tournée disponible</div>';
   } else {
-    sessions.forEach(s=>{
-      const vals=dashData.validations.filter(v=>v.agent===s.agent&&v.tourneeId===s.tourneeId&&v.startTime===s.startTime);
-      const anomCount=vals.filter(v=>v.anomalie).length;
-      const hasPhotos=vals.some(v=>v.photo);
-      const id=`cb_${s.agent}_${s.tourneeId}_${s.startTime}`.replace(/[^a-z0-9]/gi,'_');
-      const item=document.createElement('label');
-      item.className='tournee-select-item';
-      item.htmlFor=id;
-      item.innerHTML=`
-        <input type="checkbox" id="${id}" data-agent="${s.agent}" data-tourneeid="${s.tourneeId}" data-starttime="${s.startTime}">
+    sessions.forEach(s => {
+      const anomCount = parseInt(s.total_anomalies)||0;
+      const done      = parseInt(s.total_validations)||0;
+      const total     = parseInt(s.totaladdresses)||0;
+      const id = `cb_${s.id}`;
+      const item = document.createElement('label');
+      item.className = 'tournee-select-item';
+      item.htmlFor = id;
+      item.innerHTML = `
+        <input type="checkbox" id="${id}" data-session-id="${s.id}">
         <div class="tournee-select-info">
-          <div class="tournee-select-name">${s.agent} — ${s.tourneeId}</div>
-          <div class="tournee-select-meta">${typeBadge(s.typeTournee) || ''} ${fmtDate(s.startTime)} · ${fmt(s.startTime)}${s.endTime?' → '+fmt(s.endTime):' (en cours)'} · ${vals.length}${s.total?' / '+s.total:''} adresses · ${anomCount} anomalie${anomCount>1?'s':''}${hasPhotos?' · 📷 photos':''}</div>
+          <div class="tournee-select-name">${s.agent} — ${s.tournee_id}</div>
+          <div class="tournee-select-meta">${typeBadge(s.type_tournee)} ${fmtDate(s.start_time)} · ${fmt(s.start_time)}${s.end_time?' → '+fmt(s.end_time):' (en cours)'} · ${done}${total?' / '+total:''} adresses · ${anomCount} anomalie${anomCount>1?'s':''}</div>
         </div>`;
       list.appendChild(item);
     });
@@ -523,31 +635,28 @@ function openPdfModal() {
 function toggleSelectAll(cb) {
   document.querySelectorAll('#tournee-select-list input[type=checkbox]:not(#select-all-cb)').forEach(c=>c.checked=cb.checked);
 }
-
 function closePdfModal(e) { if(e.target===document.getElementById('pdf-modal-overlay')) closePdfModalDirect(); }
 function closePdfModalDirect() { document.getElementById('pdf-modal-overlay').classList.remove('open'); }
 
-// PDF depuis le bouton dans la modal détail
-function exportPdfFromModal() {
+async function exportPdfFromModal() {
   if (!currentModalSession) return;
   closePdfModalDirect();
   buildAndPrintPdf([{ session: currentModalSession, vals: currentModalVals }]);
 }
 
-// ─── GÉNÉRATION PDF ───
-function generatePdf() {
-  const checkboxes=document.querySelectorAll('#tournee-select-list input[type=checkbox]:not(#select-all-cb):checked');
+async function generatePdf() {
+  const checkboxes = document.querySelectorAll('#tournee-select-list input[type=checkbox]:not(#select-all-cb):checked');
   if (!checkboxes.length) { showToast('⚠️ Sélectionnez au moins une tournée'); return; }
 
-  const selected=[];
-  checkboxes.forEach(cb=>{
-    const s=dashData.sessions.find(s=>s.agent===cb.dataset.agent&&s.tourneeId===cb.dataset.tourneeid&&s.startTime===cb.dataset.starttime);
-    if (s) {
-      const vals=dashData.validations.filter(v=>v.agent===s.agent&&v.tourneeId===s.tourneeId&&v.startTime===s.startTime);
-      selected.push({ session:s, vals });
-    }
-  });
-
+  const selected = [];
+  for (const cb of checkboxes) {
+    const sessionId = cb.dataset.sessionId;
+    try {
+      const res  = await fetch(`/api/session/${sessionId}`);
+      const data = await res.json();
+      selected.push({ session: data.session, vals: data.validations });
+    } catch(e) {}
+  }
   closePdfModalDirect();
   buildAndPrintPdf(selected);
 }
@@ -556,57 +665,52 @@ function buildAndPrintPdf(selected) {
   const includePhotos = document.getElementById('opt-photos')?.checked !== false;
   const includeOk     = document.getElementById('opt-ok')?.checked !== false;
   const includeStats  = document.getElementById('opt-stats')?.checked !== false;
-
-  const container=document.getElementById('pdf-content');
-  container.innerHTML='';
+  const container     = document.getElementById('pdf-content');
+  container.innerHTML = '';
 
   selected.forEach(({ session:s, vals }) => {
-    const anomCount=vals.filter(v=>v.anomalie).length;
-    const okCount=vals.length-anomCount;
-    const dureeMs=s.endTime?new Date(s.endTime)-new Date(s.startTime):null;
-    const total=s.total||vals.length;
+    const anomCount = vals.filter(v=>v.anomalie).length;
+    const okCount   = vals.length - anomCount;
+    const dureeMs   = s.end_time ? new Date(s.end_time)-new Date(s.start_time) : null;
+    const total     = parseInt(s.totaladdresses)||vals.length;
+    const page      = document.createElement('div');
+    page.className  = 'pdf-page';
 
-    const page=document.createElement('div');
-    page.className='pdf-page';
-
-    // En-tête
-    page.innerHTML=`
+    page.innerHTML = `
       <div class="pdf-header">
         <h1>🗑️ SorteurPro — Rapport de tournée</h1>
-        <p>${s.agent} · Tournée ${s.tourneeId} · ${s.typeTournee === 'sortie' ? '📤 Sortie' : s.typeTournee === 'rentree' ? '📥 Rentrée' : ''} · ${fmtDate(s.startTime)}</p>
+        <p>${s.agent} · Tournée ${s.tournee_id} · ${s.type_tournee === 'sortie' ? '📤 Sortie' : s.type_tournee === 'rentree' ? '📥 Rentrée' : ''} · ${fmtDate(s.start_time)}</p>
       </div>`;
 
-    // Stats
     if (includeStats) {
-      page.innerHTML+=`
+      page.innerHTML += `
         <div class="pdf-stats">
           <div class="pdf-stat"><div class="pdf-stat-val">${vals.length} / ${total}</div><div class="pdf-stat-lbl">Adresses traitées</div></div>
-          <div class="pdf-stat"><div class="pdf-stat-val">${fmt(s.startTime)}</div><div class="pdf-stat-lbl">Heure de début</div></div>
-          <div class="pdf-stat"><div class="pdf-stat-val">${s.endTime?fmt(s.endTime):'En cours'}</div><div class="pdf-stat-lbl">Heure de fin</div></div>
+          <div class="pdf-stat"><div class="pdf-stat-val">${fmt(s.start_time)}</div><div class="pdf-stat-lbl">Heure de début</div></div>
+          <div class="pdf-stat"><div class="pdf-stat-val">${s.end_time?fmt(s.end_time):'En cours'}</div><div class="pdf-stat-lbl">Heure de fin</div></div>
           <div class="pdf-stat"><div class="pdf-stat-val">${fmtDuree(dureeMs)}</div><div class="pdf-stat-lbl">Durée totale</div></div>
           <div class="pdf-stat"><div class="pdf-stat-val" style="color:#1b5e20;">${okCount}</div><div class="pdf-stat-lbl">OK</div></div>
           <div class="pdf-stat"><div class="pdf-stat-val" style="color:#7d1f1f;">${anomCount}</div><div class="pdf-stat-lbl">Anomalies</div></div>
           <div class="pdf-stat"><div class="pdf-stat-val">${total?Math.round(vals.length/total*100):0}%</div><div class="pdf-stat-lbl">Avancement</div></div>
-          <div class="pdf-stat"><div class="pdf-stat-val">${s.status==='terminee'?'✓':'⏳'}</div><div class="pdf-stat-lbl">Statut</div></div>
+          <div class="pdf-stat"><div class="pdf-stat-val">${s.end_time?'✓':'⏳'}</div><div class="pdf-stat-lbl">Statut</div></div>
         </div>`;
     }
 
-    // Adresses
-    const sortedVals=[...vals].filter(v=>v.adresse).sort((a,b)=>(a.adresseIndex||0)-(b.adresseIndex||0));
-    const filtered=includeOk ? sortedVals : sortedVals.filter(v=>v.anomalie);
+    const sortedVals = [...vals].filter(v=>v.adresse).sort((a,b)=>(a.adresse_index||0)-(b.adresse_index||0));
+    const filtered   = includeOk ? sortedVals : sortedVals.filter(v=>v.anomalie);
 
     if (filtered.length) {
-      page.innerHTML+=`<div class="pdf-section-title">${includeOk?'Détail des adresses':'Anomalies uniquement'}</div>`;
-      filtered.forEach(v=>{
-        const isAnom=v.anomalie;
-        const photoHtml=includePhotos&&isAnom&&v.photo?`<img class="pdf-photo" src="${v.photo}" alt="Photo anomalie">`:'';
-        page.innerHTML+=`
+      page.innerHTML += `<div class="pdf-section-title">${includeOk?'Détail des adresses':'Anomalies uniquement'}</div>`;
+      filtered.forEach(v => {
+        const isAnom    = v.anomalie;
+        const photoHtml = includePhotos&&isAnom&&v.photo?`<img class="pdf-photo" src="${v.photo}" alt="Photo anomalie">`:'';
+        page.innerHTML += `
           <div class="pdf-addr-row">
             <div class="pdf-addr-num ${isAnom?'ko':'ok'}">${isAnom?'⚠':'✓'}</div>
             <div class="pdf-addr-info" style="flex:1;">
               <div class="pdf-addr-name">${v.adresse}</div>
               <div class="pdf-addr-time">⏱ ${fmt(v.timestamp)}</div>
-              ${isAnom?`<div class="pdf-addr-anomaly">${anomLabel(v.anomalieType)}</div>`:''}
+              ${isAnom?`<div class="pdf-addr-anomaly">${anomLabel(v.anomalie_type)}</div>`:''}
               ${isAnom&&v.commentaire?`<div class="pdf-addr-comment">💬 ${v.commentaire}</div>`:''}
               ${photoHtml}
             </div>
@@ -614,8 +718,7 @@ function buildAndPrintPdf(selected) {
           </div>`;
       });
     }
-
-    page.innerHTML+=`<div class="pdf-footer">Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')} — SorteurPro</div>`;
+    page.innerHTML += `<div class="pdf-footer">Généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')} — SorteurPro</div>`;
     container.appendChild(page);
   });
 
@@ -625,24 +728,24 @@ function buildAndPrintPdf(selected) {
 
 // ─── LIGHTBOX ───
 function openLightbox(src) {
-  const lb=document.createElement('div');
-  lb.className='lightbox';
-  lb.innerHTML=`<img src="${src}" alt="Photo anomalie">`;
-  lb.onclick=()=>lb.remove();
+  const lb = document.createElement('div');
+  lb.className = 'lightbox';
+  lb.innerHTML = `<img src="${src}" alt="Photo anomalie">`;
+  lb.onclick = () => lb.remove();
   document.body.appendChild(lb);
 }
 
 // ─── EXPORTS ───
 function exportExcel() {
-  const date=document.getElementById('filter-date').value;
-  window.location.href='/api/export/excel'+(date?`?date=${date}`:'');
+  const date = document.getElementById('filter-date').value;
+  window.location.href = '/api/export/excel'+(date?`?date=${date}`:'');
   showToast('📥 Export Excel en cours…');
 }
 
-document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeModalDirect(); closePdfModalDirect(); } });
+document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeModalDirect(); closePdfModalDirect(); } });
 
 // ─── INIT ───
-document.getElementById('filter-date').value=new Date().toISOString().split('T')[0];
+document.getElementById('filter-date').value = new Date().toISOString().split('T')[0];
 loadDashboard();
 setInterval(loadDashboard, 30000);
 </script>
