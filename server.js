@@ -2,29 +2,61 @@ const express = require('express');
 const XLSX = require('xlsx');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '15mb' })); // Limite augmentée pour les photos base64
+app.use(express.json({ limit: '20mb' }));
 app.use(express.static('.'));
 
+// ─── POSTGRESQL ───────────────────────────────────────────────────────────────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
+
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      agent TEXT,
+      tournee_id TEXT,
+      type_tournee TEXT,
+      start_time TIMESTAMPTZ,
+      end_time TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS validations (
+      id SERIAL PRIMARY KEY,
+      session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+      agent TEXT,
+      tournee_id TEXT,
+      type_tournee TEXT,
+      adresse TEXT,
+      anomalie BOOLEAN DEFAULT FALSE,
+      anomalie_type TEXT,
+      commentaire TEXT,
+      photo TEXT,
+      timestamp TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS pdf_exports (
+      id SERIAL PRIMARY KEY,
+      session_id TEXT,
+      tournee_id TEXT,
+      type_tournee TEXT,
+      date_tournee DATE,
+      pdf_data TEXT,
+      filename TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+  console.log('✅ Base PostgreSQL initialisée');
+}
+
+// ─── ONGLETS EXCEL ────────────────────────────────────────────────────────────
 const ONGLETS_A_IGNORER = ['📊 Récapitulatif'];
-const DATA_FILE = path.join(__dirname, 'data.json');
 
-// ─── PERSISTANCE ───
-function loadData() {
-  try {
-    if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-  } catch(e) {}
-  return { validations: [], sessions: [] };
-}
-function saveData(data) {
-  try { fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2)); } catch(e) {}
-}
-let db = loadData();
-
-// ─── LECTURE EXCEL ───
 function readTournees() {
   const wb = XLSX.readFile(path.join(__dirname, 'tournees_sorteurs.xlsx'));
   const tournees = {};
@@ -36,9 +68,11 @@ function readTournees() {
       const adresse = row[1];
       if (!adresse || typeof adresse !== 'string' || adresse.trim() === '') return;
       if (adresse.toLowerCase().includes('adresse')) return;
+      const complement = row[2] ? row[2].toString().trim() : '';
+      const nbBacs = row[3] ? row[3] + ' bacs' : '';
       addresses.push({
         name: adresse.trim(),
-        sub: [row[2] ? row[2].toString().trim() : '', row[3] ? row[3] + ' bacs' : ''].filter(Boolean).join(' — ')
+        sub: [complement, nbBacs].filter(Boolean).join(' — ')
       });
     });
     tournees[name] = { label: name, addresses };
@@ -46,186 +80,383 @@ function readTournees() {
   return tournees;
 }
 
-// ─── TOURNÉES ───
+// ─── GÉNÉRATION PDF ───────────────────────────────────────────────────────────
+function generateAnomaliesPDF(session, anomalies, withPhotos) {
+  const d = new Date(session.end_time || session.start_time);
+  const dateStr = d.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const heureDebut = new Date(session.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const heureFin = session.end_time ? new Date(session.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
+  const typeBadgeColor = session.type_tournee === 'Sortie' ? '#1a3a6b' : '#6b1a6b';
+  const typeBadge = session.type_tournee || 'Non défini';
+
+  const anomaliesHTML = anomalies.length === 0
+    ? '<p style="color:#666;font-style:italic;text-align:center;padding:20px;">Aucune anomalie signalée lors de cette tournée.</p>'
+    : anomalies.map((a, i) => {
+      const heure = new Date(a.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const photoHTML = (withPhotos && a.photo)
+        ? `<div style="margin-top:10px;"><img src="${a.photo}" style="max-width:100%;max-height:300px;border-radius:6px;border:1px solid #ddd;" alt="Photo anomalie"/></div>`
+        : '';
+      return `
+        <div style="background:#fff8f8;border-left:4px solid #e53e3e;border-radius:6px;padding:14px;margin-bottom:14px;page-break-inside:avoid;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-weight:700;font-size:15px;color:#1a1a2e;">📍 ${a.adresse}</span>
+            <span style="background:#e53e3e;color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;">⚠️ ${a.anomalie_type || 'Anomalie'}</span>
+          </div>
+          <div style="color:#666;font-size:12px;margin-bottom:6px;">🕐 ${heure}</div>
+          ${a.commentaire ? `<div style="background:#fff;border:1px solid #fecaca;border-radius:4px;padding:8px;font-size:13px;color:#444;">${a.commentaire}</div>` : ''}
+          ${photoHTML}
+        </div>`;
+    }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Anomalies — ${session.tournee_id} — ${dateStr}</title>
+<style>
+  @page { margin: 20mm 15mm; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a2e; margin: 0; padding: 0; }
+  .header { background: ${typeBadgeColor}; color: white; padding: 24px; border-radius: 0 0 12px 12px; margin-bottom: 24px; }
+  .header h1 { margin: 0 0 4px; font-size: 22px; }
+  .header .sub { opacity: 0.85; font-size: 14px; }
+  .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+  .meta-card { background: #f8f9fa; border-radius: 8px; padding: 12px; text-align: center; }
+  .meta-card .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .meta-card .value { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; }
+  .footer { text-align: center; color: #aaa; font-size: 10px; margin-top: 30px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>⚠️ Rapport d'anomalies — Tournée ${session.tournee_id}</h1>
+    <div class="sub">${dateStr} &nbsp;|&nbsp; ${typeBadge}</div>
+  </div>
+  <div class="meta-grid">
+    <div class="meta-card"><div class="label">Agent</div><div class="value">${session.agent}</div></div>
+    <div class="meta-card"><div class="label">Début</div><div class="value">${heureDebut}</div></div>
+    <div class="meta-card"><div class="label">Fin</div><div class="value">${heureFin}</div></div>
+  </div>
+  <div class="meta-grid" style="margin-bottom:24px;">
+    <div class="meta-card"><div class="label">Anomalies</div><div class="value" style="color:#e53e3e;">${anomalies.length}</div></div>
+    <div class="meta-card"><div class="label">Photos</div><div class="value">${anomalies.filter(a => a.photo).length}</div></div>
+    <div class="meta-card"><div class="label">Type</div><div class="value" style="font-size:13px;">${typeBadge}</div></div>
+  </div>
+  <div class="section-title">🔍 Détail des anomalies</div>
+  ${anomaliesHTML}
+  <div class="footer">SorteurPro — Généré automatiquement le ${new Date().toLocaleString('fr-FR')} — ${withPhotos ? 'Avec photos' : 'Sans photos'}</div>
+</body>
+</html>`;
+}
+
+// Génère le nom de fichier et structure de dossier pour le PDF
+function getPDFFilename(session) {
+  const d = new Date(session.end_time || session.start_time);
+  const annee = d.getFullYear();
+  const mois = String(d.getMonth() + 1).padStart(2, '0');
+  const jour = String(d.getDate()).padStart(2, '0');
+  const type = (session.type_tournee || 'inconnu').replace(/[^a-zA-Z]/g, '');
+  return {
+    folder: `${annee}/${mois}/${jour}/${session.tournee_id}`,
+    filename: `ANOMALIES_${session.tournee_id}_${type}_${annee}-${mois}-${jour}.pdf`
+  };
+}
+
+// ─── API : TOURNÉES ──────────────────────────────────────────────────────────
 app.get('/api/tournees', (req, res) => {
   try { res.json(readTournees()); }
-  catch(err) { res.status(500).json({ error: 'Impossible de lire le fichier Excel.' }); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Impossible de lire le fichier Excel.' }); }
 });
 
-// ─── VALIDATION ───
-app.post('/api/validation', (req, res) => {
-  const entry = { ...req.body, receivedAt: new Date().toISOString() };
-  // La photo base64 est stockée directement dans l'entrée
+// ─── API : VALIDATION ────────────────────────────────────────────────────────
+app.post('/api/validation', async (req, res) => {
+  try {
+    const { sessionId, agent, tourneeId, typeTournee, adresse, anomalie, anomalieType, commentaire, photo, timestamp } = req.body;
 
-  if (entry.type === 'fin_tournee') {
-    const idx = db.sessions.findIndex(s =>
-      s.agent === entry.agent && s.tourneeId === entry.tourneeId && s.startTime === entry.startTime
-    );
-    if (idx >= 0) db.sessions[idx] = { ...db.sessions[idx], ...entry, status: 'terminee' };
-    else db.sessions.push({ ...entry, status: 'terminee' });
+    // Upsert session
+    await pool.query(`
+      INSERT INTO sessions (id, agent, tournee_id, type_tournee, start_time)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (id) DO UPDATE SET
+        agent = EXCLUDED.agent,
+        type_tournee = COALESCE(sessions.type_tournee, EXCLUDED.type_tournee)
+    `, [sessionId, agent, tourneeId, typeTournee, timestamp]);
 
-  } else {
-    db.validations.push(entry);
-    const idx = db.sessions.findIndex(s =>
-      s.agent === entry.agent && s.tourneeId === entry.tourneeId && s.startTime === entry.startTime
-    );
-    if (idx < 0) {
-      let totalAdresses = null;
-      try {
-        const tournees = readTournees();
-        if (tournees[entry.tourneeId]) totalAdresses = tournees[entry.tourneeId].addresses.length;
-      } catch(e) {}
-      db.sessions.push({
-        agent:        entry.agent,
-        tourneeId:    entry.tourneeId,
-        tourneeName:  entry.tourneeName,
-        typeTournee:  entry.typeTournee || null,  // ← récupéré depuis la validation
-        startTime:    entry.startTime,
-        status:       'en_cours',
-        totalAdresses,
-        validations:  [entry]
-      });
-    } else {
-      if (!db.sessions[idx].validations) db.sessions[idx].validations = [];
-      db.sessions[idx].validations.push(entry);
-      if (!db.sessions[idx].totalAdresses) {
-        try {
-          const tournees = readTournees();
-          if (tournees[entry.tourneeId]) db.sessions[idx].totalAdresses = tournees[entry.tourneeId].addresses.length;
-        } catch(e) {}
-      }
-      // Met à jour typeTournee si absent (sessions créées avant cette version)
-      if (!db.sessions[idx].typeTournee && entry.typeTournee) {
-        db.sessions[idx].typeTournee = entry.typeTournee;
-      }
+    // Insérer validation
+    await pool.query(`
+      INSERT INTO validations (session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type, commentaire, photo, timestamp)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `, [sessionId, agent, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaire || null, photo || null, timestamp]);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Erreur validation:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : FIN DE TOURNÉE (génère PDF auto) ──────────────────────────────────
+app.post('/api/fin-tournee', async (req, res) => {
+  try {
+    const { sessionId, endTime, withPhotos = true } = req.body;
+
+    // Marquer fin de session
+    await pool.query(`UPDATE sessions SET end_time = $1 WHERE id = $2`, [endTime, sessionId]);
+
+    // Récupérer session + anomalies
+    const sessionRes = await pool.query(`SELECT * FROM sessions WHERE id = $1`, [sessionId]);
+    const session = sessionRes.rows[0];
+    if (!session) return res.status(404).json({ error: 'Session non trouvée' });
+
+    const anomaliesRes = await pool.query(`
+      SELECT * FROM validations
+      WHERE session_id = $1 AND anomalie = true
+      ORDER BY timestamp ASC
+    `, [sessionId]);
+    const anomalies = anomaliesRes.rows;
+
+    // Générer PDF HTML
+    const pdfHTML = generateAnomaliesPDF(session, anomalies, withPhotos);
+    const { folder, filename } = getPDFFilename(session);
+    const d = new Date(session.end_time || session.start_time);
+
+    // Sauvegarder en base (HTML qu'on convertira côté client en PDF)
+    await pool.query(`
+      INSERT INTO pdf_exports (session_id, tournee_id, type_tournee, date_tournee, pdf_data, filename)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [sessionId, session.tournee_id, session.type_tournee, d.toISOString().split('T')[0], pdfHTML, filename]);
+
+    res.json({
+      ok: true,
+      anomaliesCount: anomalies.length,
+      pdfGenerated: true,
+      folder,
+      filename
+    });
+  } catch (err) {
+    console.error('Erreur fin-tournee:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : TÉLÉCHARGER PDF anomalies par session ────────────────────────────
+app.get('/api/export/anomalies-pdf/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const withPhotos = req.query.photos !== 'false';
+
+    const sessionRes = await pool.query(`SELECT * FROM sessions WHERE id = $1`, [sessionId]);
+    const session = sessionRes.rows[0];
+    if (!session) return res.status(404).json({ error: 'Session non trouvée' });
+
+    const anomaliesRes = await pool.query(`
+      SELECT * FROM validations WHERE session_id = $1 AND anomalie = true ORDER BY timestamp ASC
+    `, [sessionId]);
+
+    const pdfHTML = generateAnomaliesPDF(session, anomaliesRes.rows, withPhotos);
+    const { filename } = getPDFFilename(session);
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('.pdf', '.html')}"`);
+    res.send(pdfHTML);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : LISTE DES EXPORTS PDF (pour dashboard) ────────────────────────────
+app.get('/api/pdf-exports', async (req, res) => {
+  try {
+    const { date } = req.query;
+    let query = `SELECT id, session_id, tournee_id, type_tournee, date_tournee, filename, created_at FROM pdf_exports`;
+    const params = [];
+    if (date) {
+      query += ` WHERE date_tournee = $1`;
+      params.push(date);
     }
+    query += ` ORDER BY created_at DESC LIMIT 100`;
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  saveData(db);
-  res.json({ ok: true });
 });
 
-// ─── DASHBOARD ───
-app.get('/api/dashboard', (req, res) => {
-  const { date } = req.query;
-  let sessions    = db.sessions;
-  let validations = db.validations;
-  if (date) {
-    sessions    = sessions.filter(s => s.startTime && s.startTime.startsWith(date));
-    validations = validations.filter(v => v.timestamp && v.timestamp.startsWith(date));
+// ─── API : TÉLÉCHARGER UN PDF DEPUIS LA BASE ────────────────────────────────
+app.get('/api/pdf-exports/:id/download', async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT * FROM pdf_exports WHERE id = $1`, [req.params.id]);
+    if (!result.rows[0]) return res.status(404).send('Non trouvé');
+    const { pdf_data, filename } = result.rows[0];
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace('.pdf', '.html')}"`);
+    res.send(pdf_data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  let tournees = null;
-  const sessionsEnrichies = sessions.map(s => {
-    const vals      = validations.filter(v => v.agent === s.agent && v.tourneeId === s.tourneeId && v.startTime === s.startTime);
-    const anomalies = vals.filter(v => v.anomalie);
-    let total = s.totalAdresses || s.total || null;
-    if (!total) {
-      if (!tournees) { try { tournees = readTournees(); } catch(e) { tournees = {}; } }
-      if (tournees[s.tourneeId]) total = tournees[s.tourneeId].addresses.length;
-    }
-    return { ...s, total, nbValidations: vals.length, nbAnomalies: anomalies.length, status: s.endTime ? 'terminee' : 'en_cours' };
-  });
-
-  const stats = {
-    tourneesEnCours:   sessionsEnrichies.filter(s => s.status === 'en_cours').length,
-    tourneesTerminees: sessionsEnrichies.filter(s => s.status === 'terminee').length,
-    totalAnomalies:    validations.filter(v => v.anomalie).length,
-    totalAdresses:     validations.length,
-  };
-
-  // Les anomalies incluent la photo base64 directement
-  const anomalies = validations.filter(v => v.anomalie).map(v => ({
-    agent:        v.agent,
-    tourneeId:    v.tourneeId,
-    adresse:      v.adresse,
-    anomalieType: v.anomalieType,
-    commentaire:  v.commentaire,
-    timestamp:    v.timestamp,
-    photo:        v.photo || null   // base64 directement
-  }));
-
-  // Les validations pour la modal incluent aussi la photo
-  const validationsAvecPhoto = validations.map(v => ({
-    agent:        v.agent,
-    tourneeId:    v.tourneeId,
-    adresse:      v.adresse,
-    adresseIndex: v.adresseIndex,
-    anomalie:     v.anomalie,
-    anomalieType: v.anomalieType,
-    commentaire:  v.commentaire,
-    timestamp:    v.timestamp,
-    startTime:    v.startTime,
-    photo:        v.photo || null   // base64 directement
-  }));
-
-  res.json({ stats, sessions: sessionsEnrichies, anomalies, validations: validationsAvecPhoto });
 });
 
-// ─── EXPORT EXCEL ───
-app.get('/api/export/excel', (req, res) => {
-  const { date } = req.query;
-  let sessions    = db.sessions;
-  let validations = db.validations;
-  if (date) {
-    sessions    = sessions.filter(s => s.startTime && s.startTime.startsWith(date));
-    validations = validations.filter(v => v.timestamp && v.timestamp.startsWith(date));
+// ─── API : DASHBOARD ─────────────────────────────────────────────────────────
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const { date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    const sessionsRes = await pool.query(`
+      SELECT s.*, COUNT(v.id) as total_validations,
+             COUNT(CASE WHEN v.anomalie THEN 1 END) as total_anomalies
+      FROM sessions s
+      LEFT JOIN validations v ON v.session_id = s.id
+      WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1
+      GROUP BY s.id ORDER BY s.start_time DESC
+    `, [targetDate]);
+
+    const anomaliesRes = await pool.query(`
+      SELECT v.* FROM validations v
+      JOIN sessions s ON s.id = v.session_id
+      WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1 AND v.anomalie = true
+      ORDER BY v.timestamp DESC
+    `, [targetDate]);
+
+    const allValidationsRes = await pool.query(`
+      SELECT v.* FROM validations v
+      JOIN sessions s ON s.id = v.session_id
+      WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1
+      ORDER BY v.timestamp DESC
+    `, [targetDate]);
+
+    const statsRes = await pool.query(`
+      SELECT
+        COUNT(DISTINCT s.id) as total_sessions,
+        COUNT(v.id) as total_validations,
+        COUNT(CASE WHEN v.anomalie THEN 1 END) as total_anomalies
+      FROM sessions s
+      LEFT JOIN validations v ON v.session_id = s.id
+      WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1
+    `, [targetDate]);
+
+    // Charger les tournées pour calculer la progression
+    let tournees = {};
+    try { tournees = readTournees(); } catch (e) {}
+
+    const sessions = sessionsRes.rows.map(s => {
+      const t = tournees[s.tournee_id];
+      const totalAddresses = t ? t.addresses.length : 0;
+      return { ...s, totalAddresses };
+    });
+
+    res.json({
+      sessions,
+      anomalies: anomaliesRes.rows,
+      validations: allValidationsRes.rows,
+      stats: statsRes.rows[0],
+      date: targetDate
+    });
+  } catch (err) {
+    console.error('Erreur dashboard:', err);
+    res.status(500).json({ error: err.message });
   }
-
-  const wb = XLSX.utils.book_new();
-
-  const sessData = sessions.map(s => {
-    const vals = validations.filter(v => v.agent === s.agent && v.tourneeId === s.tourneeId && v.startTime === s.startTime);
-    return {
-      'Agent': s.agent, 'Tournée': s.tourneeId,
-      'Date': s.startTime ? new Date(s.startTime).toLocaleDateString('fr-FR') : '',
-      'Heure début': s.startTime ? new Date(s.startTime).toLocaleTimeString('fr-FR') : '',
-      'Heure fin': s.endTime ? new Date(s.endTime).toLocaleTimeString('fr-FR') : 'En cours',
-      'Durée (min)': s.endTime ? Math.round((new Date(s.endTime) - new Date(s.startTime)) / 60000) : '',
-      'Adresses traitées': vals.length, 'Total adresses': s.totalAdresses || '',
-      'Anomalies': vals.filter(v => v.anomalie).length,
-      'Statut': s.endTime ? 'Terminée' : 'En cours'
-    };
-  });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sessData), 'Tournées');
-
-  const anomData = validations.filter(v => v.anomalie).map(v => ({
-    'Date': v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
-    'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
-    'Agent': v.agent, 'Tournée': v.tourneeId, 'Adresse': v.adresse,
-    'Type anomalie': v.anomalieType || '', 'Commentaire': v.commentaire || '',
-    'Photo': v.photo ? 'Oui' : 'Non'
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(anomData.length ? anomData : [{ 'Info': 'Aucune anomalie' }]), 'Anomalies');
-
-  const detailData = validations.map(v => ({
-    'Date': v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
-    'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
-    'Agent': v.agent, 'Tournée': v.tourneeId, 'Adresse': v.adresse,
-    'Statut': v.anomalie ? 'Anomalie' : 'OK',
-    'Type anomalie': v.anomalieType || '', 'Commentaire': v.commentaire || ''
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailData.length ? detailData : [{ 'Info': 'Aucune donnée' }]), 'Détail validations');
-
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-  const filename = `sorteurpro_${date || 'complet'}.xlsx`;
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.send(buf);
 });
 
-// ─── DEBUG ───
+// ─── API : HISTORIQUE ────────────────────────────────────────────────────────
+app.get('/api/history', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT s.*, COUNT(v.id) as total_validations,
+             COUNT(CASE WHEN v.anomalie THEN 1 END) as total_anomalies
+      FROM sessions s
+      LEFT JOIN validations v ON v.session_id = s.id
+      GROUP BY s.id ORDER BY s.start_time DESC LIMIT 200
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : DÉTAIL SESSION ────────────────────────────────────────────────────
+app.get('/api/session/:sessionId', async (req, res) => {
+  try {
+    const sRes = await pool.query(`SELECT * FROM sessions WHERE id = $1`, [req.params.sessionId]);
+    const vRes = await pool.query(`SELECT * FROM validations WHERE session_id = $1 ORDER BY timestamp ASC`, [req.params.sessionId]);
+    if (!sRes.rows[0]) return res.status(404).json({ error: 'Non trouvée' });
+    res.json({ session: sRes.rows[0], validations: vRes.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : EXPORT EXCEL ──────────────────────────────────────────────────────
+app.get('/api/export/excel', async (req, res) => {
+  try {
+    const { date } = req.query;
+    const wb = XLSX.utils.book_new();
+
+    let sessionsQuery = `SELECT s.*, COUNT(v.id) as total_validations, COUNT(CASE WHEN v.anomalie THEN 1 END) as total_anomalies FROM sessions s LEFT JOIN validations v ON v.session_id = s.id`;
+    const params = [];
+    if (date) { sessionsQuery += ` WHERE DATE(s.start_time) = $1`; params.push(date); }
+    sessionsQuery += ` GROUP BY s.id ORDER BY s.start_time DESC`;
+
+    const sessions = (await pool.query(sessionsQuery, params)).rows;
+    const validations = (await pool.query(
+      date ? `SELECT v.* FROM validations v JOIN sessions s ON s.id = v.session_id WHERE DATE(s.start_time) = $1 ORDER BY v.timestamp` : `SELECT * FROM validations ORDER BY timestamp`,
+      date ? [date] : []
+    )).rows;
+
+    const anomalies = validations.filter(v => v.anomalie);
+
+    const sessData = sessions.map(s => ({
+      'Agent': s.agent, 'Tournée': s.tournee_id, 'Type': s.type_tournee,
+      'Début': s.start_time ? new Date(s.start_time).toLocaleString('fr-FR') : '',
+      'Fin': s.end_time ? new Date(s.end_time).toLocaleString('fr-FR') : '',
+      'Validations': s.total_validations, 'Anomalies': s.total_anomalies
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sessData.length ? sessData : [{ Info: 'Aucune session' }]), 'Sessions');
+
+    const anomData = anomalies.map(a => ({
+      'Agent': a.agent, 'Tournée': a.tournee_id, 'Type tournée': a.type_tournee,
+      'Adresse': a.adresse, 'Type anomalie': a.anomalie_type,
+      'Commentaire': a.commentaire || '',
+      'Heure': a.timestamp ? new Date(a.timestamp).toLocaleString('fr-FR') : ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(anomData.length ? anomData : [{ Info: 'Aucune anomalie' }]), 'Anomalies');
+
+    const detailData = validations.map(v => ({
+      'Date': v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
+      'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
+      'Agent': v.agent, 'Tournée': v.tournee_id, 'Adresse': v.adresse,
+      'Statut': v.anomalie ? 'Anomalie' : 'OK',
+      'Type anomalie': v.anomalie_type || '', 'Commentaire': v.commentaire || ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailData.length ? detailData : [{ Info: 'Aucune donnée' }]), 'Détail validations');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Disposition', `attachment; filename="sorteurpro_${date || 'complet'}.xlsx"`);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : DEBUG ─────────────────────────────────────────────────────────────
 app.get('/api/debug', (req, res) => {
   try {
     const wb = XLSX.readFile(path.join(__dirname, 'tournees_sorteurs.xlsx'));
     const debug = {};
     wb.SheetNames.forEach(name => {
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1 });
-      debug[name] = { nb_lignes: rows.length, ligne_1: rows[0]||null, ligne_2: rows[1]||null, ligne_3: rows[2]||null, ligne_4: rows[3]||null };
+      debug[name] = { nb_lignes: rows.length, ligne_1: rows[0] || null, ligne_2: rows[1] || null, ligne_3: rows[2] || null };
     });
     res.json(debug);
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── DÉMARRAGE ───────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('SorteurPro démarré sur le port ' + PORT));
+initDB().then(() => {
+  app.listen(PORT, () => console.log(`🚀 SorteurPro démarré sur le port ${PORT}`));
+}).catch(err => {
+  console.error('❌ Erreur init DB:', err);
+  process.exit(1);
+});
