@@ -198,6 +198,16 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
   .pdf-footer { margin-top: 16px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #dee2e6; padding-top: 8px; }
 }
 
+/* ─── MODAL EXCEL ─── */
+.excel-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.excel-modal-overlay.open { opacity: 1; pointer-events: all; }
+.excel-modal { background: white; border-radius: var(--radius-lg); width: 100%; max-width: 560px; box-shadow: var(--shadow-lg); transform: translateY(20px); transition: transform 0.2s; overflow: hidden; }
+.excel-modal-overlay.open .excel-modal { transform: translateY(0); }
+.excel-modal-header { background: var(--green-dark); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
+.excel-modal-header h2 { font-size: 16px; font-weight: 700; }
+.excel-modal-body { padding: 20px; }
+.excel-modal-footer { padding: 14px 20px; border-top: 1px solid var(--gray-border); display: flex; gap: 10px; justify-content: flex-end; }
+
 /* ─── LIGHTBOX ─── */
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 500; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
 .lightbox img { max-width: 95vw; max-height: 92vh; border-radius: 8px; }
@@ -229,7 +239,7 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
   <input type="date" id="filter-date">
   <button class="btn btn-refresh" onclick="loadDashboard()">🔄 Actualiser</button>
   <div class="ml-auto" style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button class="btn btn-green" onclick="exportExcel()">📥 Export Excel</button>
+    <button class="btn btn-green" onclick="openExcelModal()">📥 Export Excel</button>
     <button class="btn btn-orange" onclick="openPdfModal()">📄 Export PDF tournée</button>
   </div>
 </div>
@@ -333,6 +343,32 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
     <div class="pdf-modal-footer">
       <button class="btn btn-gray" onclick="closePdfModalDirect()">Annuler</button>
       <button class="btn btn-orange" onclick="generatePdf()">📄 Générer le PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL EXPORT EXCEL ANOMALIES ══ -->
+<div class="excel-modal-overlay" id="excel-modal-overlay" onclick="closeExcelModal(event)">
+  <div class="excel-modal">
+    <div class="excel-modal-header">
+      <h2>📥 Export Excel — Anomalies</h2>
+      <button onclick="closeExcelModalDirect()" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div class="excel-modal-body">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Sélectionnez les tournées dont vous souhaitez extraire les anomalies :</p>
+      <div class="tournee-select-list" id="excel-tournee-list">
+        <div class="select-all-row">
+          <input type="checkbox" id="excel-select-all-cb" onchange="toggleExcelSelectAll(this)">
+          <label for="excel-select-all-cb">Tout sélectionner / désélectionner</label>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:12px;">
+        📋 L'export contiendra : Date · Heure · N° tournée · Commune · N° de rue · Adresse · Type d'anomalie · Commentaire · Sortie/Rentrée · Nom du sorteur
+      </p>
+    </div>
+    <div class="excel-modal-footer">
+      <button class="btn btn-gray" onclick="closeExcelModalDirect()">Annuler</button>
+      <button class="btn btn-green" onclick="generateExcel()">📥 Télécharger Excel</button>
     </div>
   </div>
 </div>
@@ -735,14 +771,65 @@ function openLightbox(src) {
   document.body.appendChild(lb);
 }
 
-// ─── EXPORTS ───
-function exportExcel() {
-  const date = document.getElementById('filter-date').value;
-  window.location.href = '/api/export/excel'+(date?`?date=${date}`:'');
-  showToast('📥 Export Excel en cours…');
+// ─── EXPORT EXCEL (modale sélection tournées) ───
+function openExcelModal() {
+  const list = document.getElementById('excel-tournee-list');
+  // Vider sauf la ligne "tout sélectionner"
+  const existing = list.querySelectorAll('.tournee-select-item');
+  existing.forEach(el => el.remove());
+  document.getElementById('excel-select-all-cb').checked = false;
+
+  const data = dashData;
+  if (!data || !data.sessions || data.sessions.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:20px;text-align:center;color:var(--text-muted);font-size:13px;';
+    empty.textContent = 'Aucune tournée pour cette date.';
+    list.appendChild(empty);
+  } else {
+    data.sessions.forEach(s => {
+      const vals = (data.validations || []).filter(v => v.session_id === s.id);
+      const anomCount = vals.filter(v => v.anomalie).length;
+      const done = vals.length;
+      const total = s.totaladdresses || '';
+      const item = document.createElement('div');
+      item.className = 'tournee-select-item';
+      item.onclick = () => { const cb = item.querySelector('input'); cb.checked = !cb.checked; item.classList.toggle('selected', cb.checked); };
+      item.innerHTML = `
+        <input type="checkbox" data-session-id="${s.id}" onclick="event.stopPropagation();" onchange="this.closest('.tournee-select-item').classList.toggle('selected',this.checked)">
+        <div class="tournee-select-info">
+          <div class="tournee-select-name">${s.tournee_id} — ${s.agent} ${typeBadge(s.type_tournee)}</div>
+          <div class="tournee-select-meta">${fmtDate(s.start_time)} · ${fmt(s.start_time)}${s.end_time?' → '+fmt(s.end_time):' (en cours)'} · ${done}${total?' / '+total:''} adresses · <span style="color:${anomCount>0?'var(--red)':'var(--green-dark)'}; font-weight:600;">${anomCount} anomalie${anomCount>1?'s':''}</span></div>
+        </div>`;
+      list.appendChild(item);
+    });
+  }
+  document.getElementById('excel-modal-overlay').classList.add('open');
 }
 
-document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeModalDirect(); closePdfModalDirect(); } });
+function toggleExcelSelectAll(cb) {
+  document.querySelectorAll('#excel-tournee-list input[type=checkbox]:not(#excel-select-all-cb)').forEach(c => {
+    c.checked = cb.checked;
+    c.closest('.tournee-select-item').classList.toggle('selected', cb.checked);
+  });
+}
+function closeExcelModal(e) { if (e.target === document.getElementById('excel-modal-overlay')) closeExcelModalDirect(); }
+function closeExcelModalDirect() { document.getElementById('excel-modal-overlay').classList.remove('open'); }
+
+function generateExcel() {
+  const checkboxes = document.querySelectorAll('#excel-tournee-list input[type=checkbox]:not(#excel-select-all-cb):checked');
+  if (!checkboxes.length) { showToast('⚠️ Sélectionnez au moins une tournée'); return; }
+  const sessionIds = Array.from(checkboxes).map(cb => cb.dataset.sessionId);
+  const date = document.getElementById('filter-date').value;
+  const url = `/api/export/excel?sessions=${sessionIds.join(',')}&date=${date}`;
+  closeExcelModalDirect();
+  window.location.href = url;
+  showToast('📥 Export Excel anomalies en cours…');
+}
+
+// Ancienne fonction conservée pour compatibilité (non utilisée)
+function exportExcel() { openExcelModal(); }
+
+document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeModalDirect(); closePdfModalDirect(); closeExcelModalDirect(); } });
 
 // ─── INIT ───
 document.getElementById('filter-date').value = new Date().toISOString().split('T')[0];
