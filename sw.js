@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sorteurpro-v2';
+const CACHE_NAME = 'sorteurpro-v3';
 
 // Fichiers mis en cache pour fonctionner hors ligne
 const ASSETS = [
