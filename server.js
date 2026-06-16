@@ -386,55 +386,122 @@ app.get('/api/session/:sessionId', async (req, res) => {
   }
 });
 
-// ─── API : EXPORT EXCEL ──────────────────────────────────────────────────────
+// ─── UTILITAIRE : DÉCOUPAGE N° DE RUE / ADRESSE ──────────────────────────────
+// Exemples : "9 Cour de la République" → { numero: "9", voie: "Cour de la République" }
+//            "9-10 Cour de la République" → { numero: "9-10", voie: "Cour de la République" }
+//            "Cour de la République" → { numero: "", voie: "Cour de la République" }
+function parseAdresse(adresse) {
+  if (!adresse) return { numero: '', voie: '' };
+  const match = adresse.trim().match(/^(\d+(?:-\d+)?[a-zA-Z]?)\s+(.+)$/);
+  if (match) return { numero: match[1], voie: match[2].trim() };
+  return { numero: '', voie: adresse.trim() };
+}
+
+// ─── API : EXPORT EXCEL ANOMALIES ────────────────────────────────────────────
 app.get('/api/export/excel', async (req, res) => {
   try {
-    const { date } = req.query;
+    const { date, sessions: sessionsParam } = req.query;
+
+    // sessions peut être "id1,id2,id3" ou absent (= toutes)
+    const sessionIds = sessionsParam ? sessionsParam.split(',').map(s => s.trim()).filter(Boolean) : null;
+
+    let anomaliesQuery;
+    let params = [];
+
+    if (sessionIds && sessionIds.length > 0) {
+      // Filtre sur les sessions sélectionnées
+      const placeholders = sessionIds.map((_, i) => `$${i + 1}`).join(',');
+      anomaliesQuery = `
+        SELECT v.*, s.start_time as session_start, s.end_time as session_end
+        FROM validations v
+        JOIN sessions s ON s.id = v.session_id
+        WHERE v.session_id IN (${placeholders}) AND v.anomalie = true
+        ORDER BY v.timestamp ASC
+      `;
+      params = sessionIds;
+    } else if (date) {
+      anomaliesQuery = `
+        SELECT v.*, s.start_time as session_start, s.end_time as session_end
+        FROM validations v
+        JOIN sessions s ON s.id = v.session_id
+        WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1 AND v.anomalie = true
+        ORDER BY v.timestamp ASC
+      `;
+      params = [date];
+    } else {
+      anomaliesQuery = `
+        SELECT v.*, s.start_time as session_start, s.end_time as session_end
+        FROM validations v
+        JOIN sessions s ON s.id = v.session_id
+        WHERE v.anomalie = true
+        ORDER BY v.timestamp ASC
+      `;
+    }
+
+    const anomalies = (await pool.query(anomaliesQuery, params)).rows;
+
+    // ── Construction de la feuille ──
     const wb = XLSX.utils.book_new();
 
-    let sessionsQuery = `SELECT s.*, COUNT(v.id) as total_validations, COUNT(CASE WHEN v.anomalie THEN 1 END) as total_anomalies FROM sessions s LEFT JOIN validations v ON v.session_id = s.id`;
-    const params = [];
-    if (date) { sessionsQuery += ` WHERE DATE(s.start_time) = $1`; params.push(date); }
-    sessionsQuery += ` GROUP BY s.id ORDER BY s.start_time DESC`;
+    // En-têtes colonnes A→J
+    const headers = [
+      'Date',           // A
+      'Heure',          // B
+      'N° Tournée',     // C
+      'Commune',        // D (vide pour l'instant)
+      'N° de rue',      // E
+      'Adresse',        // F (sans le numéro)
+      'Type d\'anomalie', // G
+      'Commentaire',    // H
+      'Sortie / Rentrée', // I
+      'Nom Prénom sorteur' // J
+    ];
 
-    const sessions = (await pool.query(sessionsQuery, params)).rows;
-    const validations = (await pool.query(
-      date ? `SELECT v.* FROM validations v JOIN sessions s ON s.id = v.session_id WHERE DATE(s.start_time) = $1 ORDER BY v.timestamp` : `SELECT * FROM validations ORDER BY timestamp`,
-      date ? [date] : []
-    )).rows;
+    const rows = anomalies.map(a => {
+      const ts = a.timestamp ? new Date(a.timestamp) : null;
+      const { numero, voie } = parseAdresse(a.adresse);
+      return [
+        ts ? ts.toLocaleDateString('fr-FR') : '',           // A - Date
+        ts ? ts.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '', // B - Heure
+        a.tournee_id || '',                                 // C - N° Tournée
+        '',                                                 // D - Commune (vide)
+        numero,                                             // E - N° de rue
+        voie,                                               // F - Adresse sans numéro
+        a.anomalie_type || '',                              // G - Type anomalie
+        a.commentaire || '',                                // H - Commentaire
+        a.type_tournee || '',                               // I - Sortie / Rentrée
+        a.agent || ''                                       // J - Nom Prénom sorteur
+      ];
+    });
 
-    const anomalies = validations.filter(v => v.anomalie);
+    // Construire la feuille manuellement (header + données)
+    const wsData = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    const sessData = sessions.map(s => ({
-      'Agent': s.agent, 'Tournée': s.tournee_id, 'Type': s.type_tournee,
-      'Début': s.start_time ? new Date(s.start_time).toLocaleString('fr-FR') : '',
-      'Fin': s.end_time ? new Date(s.end_time).toLocaleString('fr-FR') : '',
-      'Validations': s.total_validations, 'Anomalies': s.total_anomalies
-    }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sessData.length ? sessData : [{ Info: 'Aucune session' }]), 'Sessions');
+    // Largeurs de colonnes optimisées
+    ws['!cols'] = [
+      { wch: 12 }, // A Date
+      { wch: 8  }, // B Heure
+      { wch: 12 }, // C N° Tournée
+      { wch: 16 }, // D Commune
+      { wch: 10 }, // E N° de rue
+      { wch: 32 }, // F Adresse
+      { wch: 22 }, // G Type anomalie
+      { wch: 36 }, // H Commentaire
+      { wch: 14 }, // I Sortie/Rentrée
+      { wch: 24 }, // J Nom Prénom
+    ];
 
-    const anomData = anomalies.map(a => ({
-      'Agent': a.agent, 'Tournée': a.tournee_id, 'Type tournée': a.type_tournee,
-      'Adresse': a.adresse, 'Type anomalie': a.anomalie_type,
-      'Commentaire': a.commentaire || '',
-      'Heure': a.timestamp ? new Date(a.timestamp).toLocaleString('fr-FR') : ''
-    }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(anomData.length ? anomData : [{ Info: 'Aucune anomalie' }]), 'Anomalies');
+    XLSX.utils.book_append_sheet(wb, ws, 'Anomalies');
 
-    const detailData = validations.map(v => ({
-      'Date': v.timestamp ? new Date(v.timestamp).toLocaleDateString('fr-FR') : '',
-      'Heure': v.timestamp ? new Date(v.timestamp).toLocaleTimeString('fr-FR') : '',
-      'Agent': v.agent, 'Tournée': v.tournee_id, 'Adresse': v.adresse,
-      'Statut': v.anomalie ? 'Anomalie' : 'OK',
-      'Type anomalie': v.anomalie_type || '', 'Commentaire': v.commentaire || ''
-    }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailData.length ? detailData : [{ Info: 'Aucune donnée' }]), 'Détail validations');
-
+    // Nom du fichier
+    const fileSuffix = date || (sessionIds ? `selection` : 'complet');
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    res.setHeader('Content-Disposition', `attachment; filename="sorteurpro_${date || 'complet'}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="anomalies_${fileSuffix}.xlsx"`);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buf);
   } catch (err) {
+    console.error('Erreur export excel:', err);
     res.status(500).json({ error: err.message });
   }
 });
