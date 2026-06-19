@@ -219,6 +219,19 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 @keyframes spin { to { transform: rotate(360deg); } }
 .toast { position: fixed; bottom: 24px; right: 24px; background: var(--green-dark); color: white; padding: 12px 20px; border-radius: var(--radius); font-size: 14px; font-weight: 500; opacity: 0; transition: opacity 0.3s; z-index: 999; pointer-events: none; box-shadow: var(--shadow-lg); }
 .toast.show { opacity: 1; }
+.btn-loc { width: 30px; height: 30px; flex-shrink: 0; border: none; background: transparent; opacity: 0.35; font-size: 15px; border-radius: 50%; cursor: pointer; transition: opacity 0.15s, background 0.15s; }
+.btn-loc:hover:not(:disabled) { opacity: 0.9; background: var(--blue-pale); }
+.btn-loc:disabled { cursor: default; }
+.btn-loc.spinning { animation: spin 0.9s linear infinite; opacity: 0.7; }
+.loc-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 400; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.loc-modal-overlay.open { opacity: 1; pointer-events: all; }
+.loc-modal { background: white; border-radius: var(--radius); padding: 22px; width: 100%; max-width: 320px; text-align: center; transform: translateY(10px); transition: transform 0.2s; }
+.loc-modal-overlay.open .loc-modal { transform: translateY(0); }
+.loc-modal .loc-icon { font-size: 30px; margin-bottom: 8px; }
+.loc-modal .loc-title { font-weight: 700; color: var(--blue); margin-bottom: 4px; }
+.loc-modal .loc-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+.loc-modal .loc-coords { font-family: monospace; font-size: 13px; background: var(--blue-pale); border-radius: 6px; padding: 8px; margin-bottom: 14px; }
+.loc-modal .btn { width: 100%; justify-content: center; margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -307,6 +320,7 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
         <div class="modal-sub" id="modal-sub"></div>
       </div>
       <div class="modal-actions">
+        <button class="btn-loc" id="modal-loc-btn" title="Localiser le téléphone" onclick="requestLocation(currentModalSession.id, this)">📍</button>
         <button class="btn btn-orange" id="modal-pdf-btn" onclick="exportPdfFromModal()" style="padding:6px 12px;font-size:12px;">📄 PDF</button>
         <button class="modal-close" onclick="closeModalDirect()">✕</button>
       </div>
@@ -316,6 +330,11 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
       <div id="modal-timeline"></div>
     </div>
   </div>
+</div>
+
+<!-- ══ POPUP RÉSULTAT LOCALISATION ══ -->
+<div class="loc-modal-overlay" id="loc-result-overlay" onclick="if(event.target===this) closeLocationResult()">
+  <div class="loc-modal" id="loc-result-content"></div>
 </div>
 
 <!-- ══ MODAL EXPORT PDF ══ -->
@@ -506,7 +525,7 @@ function renderTournees(sessions, validations) {
   });
 
   sorted.forEach(s => {
-    const total     = parseInt(s.totaladdresses) || parseInt(s.total_validations) || 0;
+    const total     = parseInt(s.totalAddresses) || parseInt(s.total_validations) || 0;
     const done      = parseInt(s.total_validations) || 0;
     const anomCount = parseInt(s.total_anomalies) || 0;
     const pct       = total > 0 ? Math.round(done/total*100) : 0;
@@ -527,6 +546,7 @@ function renderTournees(sessions, validations) {
         <div class="progress-mini"><div class="progress-mini-fill ${isTerminee?'done':''}" style="width:${pct}%"></div></div>
         <div class="progress-txt">${done}${total?' / '+total:''} adresses</div>
       </div>
+      ${!isTerminee ? `<button class="btn-loc" title="Localiser le téléphone" onclick="event.stopPropagation(); requestLocation('${s.id}', this)">📍</button>` : ''}
       <div class="chevron">›</div>`;
     row.onclick = () => openModalBySessionId(s.id);
     el.appendChild(row);
@@ -560,7 +580,7 @@ function renderHistorique(sessions) {
     const dureeMs   = s.end_time ? new Date(s.end_time)-new Date(s.start_time) : null;
     const done      = parseInt(s.total_validations)||0;
     const anomCount = parseInt(s.total_anomalies)||0;
-    const total     = parseInt(s.totaladdresses)||0;
+    const total     = parseInt(s.totalAddresses)||0;
     const badge     = s.end_time ? `<span class="badge badge-terminee">✓ Terminée</span>` : `<span class="badge badge-en-cours">⏳ En cours</span>`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -592,6 +612,10 @@ function openModal(session, validations) {
   currentModalSession = session;
   currentModalVals    = validations;
 
+  document.getElementById('modal-loc-btn').style.display = session.end_time ? 'none' : '';
+  document.getElementById('modal-loc-btn').textContent = '📍';
+  document.getElementById('modal-loc-btn').disabled = false;
+
   document.getElementById('modal-title').textContent = `${session.agent} — ${session.tournee_id}`;
   const dureeMs = session.end_time ? new Date(session.end_time)-new Date(session.start_time) : null;
   document.getElementById('modal-sub').innerHTML =
@@ -601,7 +625,7 @@ function openModal(session, validations) {
     ` · ${session.end_time?'✓ Terminée':'⏳ En cours'} `+typeBadge(session.type_tournee);
 
   const anomCount = validations.filter(v=>v.anomalie).length;
-  const total     = parseInt(session.totaladdresses)||validations.length;
+  const total     = parseInt(session.totalAddresses)||validations.length;
   document.getElementById('modal-stats').innerHTML = `
     <div class="modal-stat"><div class="modal-stat-val" style="color:var(--blue);">${validations.length}/${total}</div><div class="modal-stat-lbl">Traitées</div></div>
     <div class="modal-stat"><div class="modal-stat-val" style="color:var(--blue);">${total?Math.round(validations.length/total*100):0}%</div><div class="modal-stat-lbl">Avancement</div></div>
@@ -636,6 +660,104 @@ function openModal(session, validations) {
 function closeModal(e) { if(e.target===document.getElementById('modal-overlay')) closeModalDirect(); }
 function closeModalDirect() { document.getElementById('modal-overlay').classList.remove('open'); }
 
+// ─── LOCALISATION DU TÉLÉPHONE (tournée en cours uniquement) ───
+const locPolls = {}; // sessionId -> interval id, pour éviter les requêtes en double
+
+async function requestLocation(sessionId, btnEl) {
+  if (!sessionId || locPolls[sessionId]) return;
+
+  btnEl.disabled = true;
+  btnEl.classList.add('spinning');
+  btnEl.textContent = '⏳';
+
+  try {
+    const res = await fetch('/api/location/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      showToast(err.error || 'Tournée terminée, localisation impossible', '#c0392b');
+      resetLocBtn(btnEl);
+      return;
+    }
+  } catch (e) {
+    showToast('Erreur réseau', '#c0392b');
+    resetLocBtn(btnEl);
+    return;
+  }
+
+  let elapsed = 0;
+  const maxWait = 45000, step = 2500;
+  locPolls[sessionId] = setInterval(async () => {
+    elapsed += step;
+    try {
+      const r = await fetch(`/api/location/status/${sessionId}`);
+      const data = await r.json();
+      if (data.loc_status && data.loc_status !== 'pending') {
+        clearInterval(locPolls[sessionId]);
+        delete locPolls[sessionId];
+        resetLocBtn(btnEl);
+        showLocationResult(data);
+        return;
+      }
+    } catch (e) {}
+    if (elapsed >= maxWait) {
+      clearInterval(locPolls[sessionId]);
+      delete locPolls[sessionId];
+      resetLocBtn(btnEl);
+      showLocationResult({ loc_status: 'no_response' });
+    }
+  }, step);
+}
+
+function resetLocBtn(btnEl) {
+  btnEl.disabled = false;
+  btnEl.classList.remove('spinning');
+  btnEl.textContent = '📍';
+}
+
+function showLocationResult(data) {
+  const content = document.getElementById('loc-result-content');
+  const ts = data.loc_captured_at ? fmt(data.loc_captured_at) : '';
+
+  if (data.loc_status === 'ok') {
+    const lat = parseFloat(data.loc_lat), lng = parseFloat(data.loc_lng);
+    const acc = data.loc_accuracy ? Math.round(data.loc_accuracy) : null;
+    content.innerHTML = `
+      <div class="loc-icon">📍</div>
+      <div class="loc-title">Position reçue</div>
+      <div class="loc-sub">À ${ts}${acc ? ` · précision ≈ ${acc} m` : ''}</div>
+      <div class="loc-coords">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+      <a class="btn btn-blue" target="_blank" href="https://www.google.com/maps?q=${lat},${lng}">🗺️ Ouvrir sur la carte</a>
+      <button class="btn" style="background:var(--blue-light);color:var(--blue);" onclick="closeLocationResult()">Fermer</button>`;
+  } else if (data.loc_status === 'denied') {
+    content.innerHTML = `
+      <div class="loc-icon">🚫</div>
+      <div class="loc-title">Localisation refusée</div>
+      <div class="loc-sub">Le sorteur a refusé l'accès GPS sur son téléphone.</div>
+      <button class="btn" style="background:var(--blue-light);color:var(--blue);" onclick="closeLocationResult()">Fermer</button>`;
+  } else if (data.loc_status === 'no_response') {
+    content.innerHTML = `
+      <div class="loc-icon">📡</div>
+      <div class="loc-title">Pas de réponse</div>
+      <div class="loc-sub">L'app du sorteur n'a pas répondu (téléphone hors connexion ou app fermée).</div>
+      <button class="btn" style="background:var(--blue-light);color:var(--blue);" onclick="closeLocationResult()">Fermer</button>`;
+  } else {
+    content.innerHTML = `
+      <div class="loc-icon">⚠️</div>
+      <div class="loc-title">Erreur de localisation</div>
+      <div class="loc-sub">Le téléphone n'a pas pu fournir sa position.</div>
+      <button class="btn" style="background:var(--blue-light);color:var(--blue);" onclick="closeLocationResult()">Fermer</button>`;
+  }
+  document.getElementById('loc-result-overlay').classList.add('open');
+}
+
+function closeLocationResult() {
+  document.getElementById('loc-result-overlay').classList.remove('open');
+}
+
 // ─── MODAL EXPORT PDF (impression) ───
 function openPdfModal() {
   const list = document.getElementById('tournee-select-list');
@@ -651,7 +773,7 @@ function openPdfModal() {
     sessions.forEach(s => {
       const anomCount = parseInt(s.total_anomalies)||0;
       const done      = parseInt(s.total_validations)||0;
-      const total     = parseInt(s.totaladdresses)||0;
+      const total     = parseInt(s.totalAddresses)||0;
       const id = `cb_${s.id}`;
       const item = document.createElement('label');
       item.className = 'tournee-select-item';
@@ -708,7 +830,7 @@ function buildAndPrintPdf(selected) {
     const anomCount = vals.filter(v=>v.anomalie).length;
     const okCount   = vals.length - anomCount;
     const dureeMs   = s.end_time ? new Date(s.end_time)-new Date(s.start_time) : null;
-    const total     = parseInt(s.totaladdresses)||vals.length;
+    const total     = parseInt(s.totalAddresses)||vals.length;
     const page      = document.createElement('div');
     page.className  = 'pdf-page';
 
@@ -790,7 +912,7 @@ function openExcelModal() {
       const vals = (data.validations || []).filter(v => v.session_id === s.id);
       const anomCount = vals.filter(v => v.anomalie).length;
       const done = vals.length;
-      const total = s.totaladdresses || '';
+      const total = s.totalAddresses || '';
       const item = document.createElement('div');
       item.className = 'tournee-select-item';
       item.onclick = () => { const cb = item.querySelector('input'); cb.checked = !cb.checked; item.classList.toggle('selected', cb.checked); };
