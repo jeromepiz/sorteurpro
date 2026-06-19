@@ -50,6 +50,12 @@ async function initDB() {
       filename TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_requested_at TIMESTAMPTZ;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_captured_at TIMESTAMPTZ;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_lat DOUBLE PRECISION;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_lng DOUBLE PRECISION;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_accuracy DOUBLE PRECISION;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_status TEXT;
   `);
   console.log('✅ Base PostgreSQL initialisée');
 }
@@ -380,7 +386,13 @@ app.get('/api/session/:sessionId', async (req, res) => {
     const sRes = await pool.query(`SELECT * FROM sessions WHERE id = $1`, [req.params.sessionId]);
     const vRes = await pool.query(`SELECT * FROM validations WHERE session_id = $1 ORDER BY timestamp ASC`, [req.params.sessionId]);
     if (!sRes.rows[0]) return res.status(404).json({ error: 'Non trouvée' });
-    res.json({ session: sRes.rows[0], validations: vRes.rows });
+
+    let tournees = {};
+    try { tournees = readTournees(); } catch (e) {}
+    const t = tournees[sRes.rows[0].tournee_id];
+    const session = { ...sRes.rows[0], totalAddresses: t ? t.addresses.length : 0 };
+
+    res.json({ session, validations: vRes.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -502,6 +514,79 @@ app.get('/api/export/excel', async (req, res) => {
     res.send(buf);
   } catch (err) {
     console.error('Erreur export excel:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : LOCALISATION ───────────────────────────────────────────────────────
+// 1) Le dashboard déclenche une demande sur une session "en cours"
+app.post('/api/location/request', async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    const sessionRes = await pool.query(`SELECT id, end_time FROM sessions WHERE id = $1`, [sessionId]);
+    const session = sessionRes.rows[0];
+    if (!session) return res.status(404).json({ error: 'Session non trouvée' });
+    if (session.end_time) return res.status(400).json({ error: 'Tournée terminée, localisation impossible' });
+
+    const requestedAt = new Date().toISOString();
+    await pool.query(`
+      UPDATE sessions
+      SET loc_requested_at = $1, loc_status = 'pending',
+          loc_lat = NULL, loc_lng = NULL, loc_accuracy = NULL, loc_captured_at = NULL
+      WHERE id = $2
+    `, [requestedAt, sessionId]);
+
+    res.json({ ok: true, requestedAt });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2) Le téléphone du sorteur interroge régulièrement s'il y a une demande en attente
+app.get('/api/location/pending/:sessionId', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT loc_status, end_time FROM sessions WHERE id = $1
+    `, [req.params.sessionId]);
+    const s = r.rows[0];
+    if (!s) return res.json({ pending: false });
+    res.json({ pending: !s.end_time && s.loc_status === 'pending' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3) Le téléphone renvoie sa position (ou une erreur : 'denied' / 'error')
+app.post('/api/location/report', async (req, res) => {
+  try {
+    const { sessionId, status, lat, lng, accuracy } = req.body;
+    if (status === 'ok') {
+      await pool.query(`
+        UPDATE sessions
+        SET loc_lat = $1, loc_lng = $2, loc_accuracy = $3, loc_captured_at = NOW(), loc_status = 'ok'
+        WHERE id = $4
+      `, [lat, lng, accuracy || null, sessionId]);
+    } else {
+      await pool.query(`
+        UPDATE sessions SET loc_status = $1, loc_captured_at = NOW() WHERE id = $2
+      `, [status || 'error', sessionId]);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4) Le dashboard interroge le résultat de la demande
+app.get('/api/location/status/:sessionId', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT loc_requested_at, loc_captured_at, loc_lat, loc_lng, loc_accuracy, loc_status
+      FROM sessions WHERE id = $1
+    `, [req.params.sessionId]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Non trouvée' });
+    res.json(r.rows[0]);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
