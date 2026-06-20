@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SorteurPro — Tableau de bord</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -232,6 +234,18 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 .loc-modal .loc-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
 .loc-modal .loc-coords { font-family: monospace; font-size: 13px; background: var(--blue-pale); border-radius: 6px; padding: 8px; margin-bottom: 14px; }
 .loc-modal .btn { width: 100%; justify-content: center; margin-bottom: 8px; }
+.route-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 410; display: flex; align-items: center; justify-content: center; padding: 16px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.route-modal-overlay.open { opacity: 1; pointer-events: all; }
+.route-modal { background: white; border-radius: var(--radius-lg); width: 100%; max-width: 720px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-lg); }
+.route-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: var(--blue); color: white; }
+.route-modal-header h2 { font-size: 15px; font-weight: 700; }
+.route-modal-header button { background: none; border: none; color: white; font-size: 20px; cursor: pointer; line-height: 1; }
+#route-map { width: 100%; height: 60vh; background: var(--gray-bg); }
+.route-modal-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); }
+.route-popup-title { font-weight: 700; color: var(--blue); margin-bottom: 2px; }
+.route-popup-time { font-size: 12px; color: var(--text-muted); }
+.route-marker-num { background: var(--blue); color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+.route-marker-num.anomalie { background: var(--red); }
 </style>
 </head>
 <body>
@@ -321,6 +335,7 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
       </div>
       <div class="modal-actions">
         <button class="btn-loc" id="modal-loc-btn" title="Localiser le téléphone" onclick="requestLocation(currentModalSession.id, this)">📍</button>
+        <button class="btn-loc" id="modal-route-btn" title="Voir l'itinéraire" onclick="showRouteMap(currentModalSession.id)">🗺️</button>
         <button class="btn btn-orange" id="modal-pdf-btn" onclick="exportPdfFromModal()" style="padding:6px 12px;font-size:12px;">📄 PDF</button>
         <button class="modal-close" onclick="closeModalDirect()">✕</button>
       </div>
@@ -335,6 +350,20 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 <!-- ══ POPUP RÉSULTAT LOCALISATION ══ -->
 <div class="loc-modal-overlay" id="loc-result-overlay" onclick="if(event.target===this) closeLocationResult()">
   <div class="loc-modal" id="loc-result-content"></div>
+</div>
+
+<!-- ══ MODAL CARTE ITINÉRAIRE ══ -->
+<div class="route-modal-overlay" id="route-modal-overlay" onclick="if(event.target===this) closeRouteMap()">
+  <div class="route-modal">
+    <div class="route-modal-header">
+      <h2 id="route-modal-title">🗺️ Itinéraire de la tournée</h2>
+      <button onclick="closeRouteMap()">✕</button>
+    </div>
+    <div id="route-map"></div>
+    <div class="route-modal-empty" id="route-modal-empty" style="display:none;">
+      Aucune position GPS enregistrée pour cette tournée.
+    </div>
+  </div>
 </div>
 
 <!-- ══ MODAL EXPORT PDF ══ -->
@@ -711,6 +740,79 @@ function showLocationResult(data) {
 
 function closeLocationResult() {
   document.getElementById('loc-result-overlay').classList.remove('open');
+}
+
+// ─── CARTE ITINÉRAIRE (parcours complet avec heures de passage) ───
+let routeMapInstance = null;
+let routeMapLayer = null;
+
+async function showRouteMap(sessionId) {
+  if (!sessionId) return;
+  document.getElementById('route-modal-overlay').classList.add('open');
+  document.getElementById('route-map').style.display = 'block';
+  document.getElementById('route-modal-empty').style.display = 'none';
+
+  let validations = [];
+  try {
+    const r = await fetch(`/api/session/${sessionId}`);
+    const data = await r.json();
+    validations = data.validations || [];
+  } catch (e) {
+    showToast('Erreur réseau', '#c0392b');
+  }
+
+  const points = validations
+    .filter(v => v.lat != null && v.lng != null)
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+  if (points.length === 0) {
+    document.getElementById('route-map').style.display = 'none';
+    document.getElementById('route-modal-empty').style.display = 'block';
+    return;
+  }
+
+  // Initialise la carte une seule fois, puis on la réutilise
+  if (!routeMapInstance) {
+    routeMapInstance = L.map('route-map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(routeMapInstance);
+  }
+  if (routeMapLayer) { routeMapInstance.removeLayer(routeMapLayer); }
+  routeMapLayer = L.layerGroup().addTo(routeMapInstance);
+
+  const latlngs = points.map(p => [p.lat, p.lng]);
+
+  // Ligne reliant les points dans l'ordre chronologique
+  L.polyline(latlngs, { color: '#2e6da4', weight: 3, opacity: 0.7 }).addTo(routeMapLayer);
+
+  // Un marqueur numéroté par point, avec heure de passage et adresse
+  points.forEach((p, i) => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="route-marker-num${p.anomalie ? ' anomalie' : ''}">${i + 1}</div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11]
+    });
+    const heure = fmt(p.timestamp);
+    L.marker([p.lat, p.lng], { icon })
+      .bindPopup(`
+        <div class="route-popup-title">${i + 1}. ${p.adresse || ''}</div>
+        <div class="route-popup-time">🕐 ${heure}${p.anomalie ? ' · ⚠️ ' + anomLabel(p.anomalie_type) : ''}</div>
+      `)
+      .addTo(routeMapLayer);
+  });
+
+  // Cadrage automatique sur l'ensemble du parcours
+  setTimeout(() => {
+    routeMapInstance.invalidateSize();
+    routeMapInstance.fitBounds(L.latLngBounds(latlngs), { padding: [30, 30] });
+  }, 50);
+}
+
+function closeRouteMap() {
+  document.getElementById('route-modal-overlay').classList.remove('open');
 }
 
 // ─── MODAL EXPORT PDF (impression) ───
