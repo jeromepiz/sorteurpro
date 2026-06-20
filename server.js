@@ -50,12 +50,10 @@ async function initDB() {
       filename TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
-    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_requested_at TIMESTAMPTZ;
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_captured_at TIMESTAMPTZ;
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_lat DOUBLE PRECISION;
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_lng DOUBLE PRECISION;
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_accuracy DOUBLE PRECISION;
-    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_status TEXT;
   `);
   console.log('✅ Base PostgreSQL initialisée');
 }
@@ -177,16 +175,20 @@ app.get('/api/tournees', (req, res) => {
 // ─── API : VALIDATION ────────────────────────────────────────────────────────
 app.post('/api/validation', async (req, res) => {
   try {
-    const { sessionId, agent, tourneeId, typeTournee, adresse, anomalie, anomalieType, commentaire, photo, timestamp } = req.body;
+    const { sessionId, agent, tourneeId, typeTournee, adresse, anomalie, anomalieType, commentaire, photo, timestamp, lat, lng, accuracy } = req.body;
 
-    // Upsert session
+    // Upsert session — met aussi à jour la dernière position connue si le téléphone en a transmis une
     await pool.query(`
-      INSERT INTO sessions (id, agent, tournee_id, type_tournee, start_time)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO sessions (id, agent, tournee_id, type_tournee, start_time, loc_lat, loc_lng, loc_accuracy, loc_captured_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $6 IS NOT NULL THEN NOW() END)
       ON CONFLICT (id) DO UPDATE SET
         agent = EXCLUDED.agent,
-        type_tournee = COALESCE(sessions.type_tournee, EXCLUDED.type_tournee)
-    `, [sessionId, agent, tourneeId, typeTournee, timestamp]);
+        type_tournee = COALESCE(sessions.type_tournee, EXCLUDED.type_tournee),
+        loc_lat = COALESCE(EXCLUDED.loc_lat, sessions.loc_lat),
+        loc_lng = COALESCE(EXCLUDED.loc_lng, sessions.loc_lng),
+        loc_accuracy = COALESCE(EXCLUDED.loc_accuracy, sessions.loc_accuracy),
+        loc_captured_at = CASE WHEN EXCLUDED.loc_lat IS NOT NULL THEN NOW() ELSE sessions.loc_captured_at END
+    `, [sessionId, agent, tourneeId, typeTournee, timestamp, lat || null, lng || null, accuracy || null]);
 
     // Insérer validation
     await pool.query(`
@@ -519,69 +521,12 @@ app.get('/api/export/excel', async (req, res) => {
 });
 
 // ─── API : LOCALISATION ───────────────────────────────────────────────────────
-// 1) Le dashboard déclenche une demande sur une session "en cours"
-app.post('/api/location/request', async (req, res) => {
-  try {
-    const { sessionId } = req.body;
-    const sessionRes = await pool.query(`SELECT id, end_time FROM sessions WHERE id = $1`, [sessionId]);
-    const session = sessionRes.rows[0];
-    if (!session) return res.status(404).json({ error: 'Session non trouvée' });
-    if (session.end_time) return res.status(400).json({ error: 'Tournée terminée, localisation impossible' });
-
-    const requestedAt = new Date().toISOString();
-    await pool.query(`
-      UPDATE sessions
-      SET loc_requested_at = $1, loc_status = 'pending',
-          loc_lat = NULL, loc_lng = NULL, loc_accuracy = NULL, loc_captured_at = NULL
-      WHERE id = $2
-    `, [requestedAt, sessionId]);
-
-    res.json({ ok: true, requestedAt });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 2) Le téléphone du sorteur interroge régulièrement s'il y a une demande en attente
-app.get('/api/location/pending/:sessionId', async (req, res) => {
-  try {
-    const r = await pool.query(`
-      SELECT loc_status, end_time FROM sessions WHERE id = $1
-    `, [req.params.sessionId]);
-    const s = r.rows[0];
-    if (!s) return res.json({ pending: false });
-    res.json({ pending: !s.end_time && s.loc_status === 'pending' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 3) Le téléphone renvoie sa position (ou une erreur : 'denied' / 'error')
-app.post('/api/location/report', async (req, res) => {
-  try {
-    const { sessionId, status, lat, lng, accuracy } = req.body;
-    if (status === 'ok') {
-      await pool.query(`
-        UPDATE sessions
-        SET loc_lat = $1, loc_lng = $2, loc_accuracy = $3, loc_captured_at = NOW(), loc_status = 'ok'
-        WHERE id = $4
-      `, [lat, lng, accuracy || null, sessionId]);
-    } else {
-      await pool.query(`
-        UPDATE sessions SET loc_status = $1, loc_captured_at = NOW() WHERE id = $2
-      `, [status || 'error', sessionId]);
-    }
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// 4) Le dashboard interroge le résultat de la demande
+// La position est capturée passivement à chaque validation d'adresse (voir /api/validation).
+// Cet endpoint renvoie simplement la dernière position connue, instantanément, sans attente.
 app.get('/api/location/status/:sessionId', async (req, res) => {
   try {
     const r = await pool.query(`
-      SELECT loc_requested_at, loc_captured_at, loc_lat, loc_lng, loc_accuracy, loc_status
+      SELECT loc_captured_at, loc_lat, loc_lng, loc_accuracy
       FROM sessions WHERE id = $1
     `, [req.params.sessionId]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Non trouvée' });
