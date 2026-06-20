@@ -54,6 +54,9 @@ async function initDB() {
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_lat DOUBLE PRECISION;
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_lng DOUBLE PRECISION;
     ALTER TABLE sessions ADD COLUMN IF NOT EXISTS loc_accuracy DOUBLE PRECISION;
+    ALTER TABLE validations ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+    ALTER TABLE validations ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+    ALTER TABLE validations ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION;
   `);
   console.log('✅ Base PostgreSQL initialisée');
 }
@@ -190,11 +193,11 @@ app.post('/api/validation', async (req, res) => {
         loc_captured_at = CASE WHEN EXCLUDED.loc_lat IS NOT NULL THEN NOW() ELSE sessions.loc_captured_at END
     `, [sessionId, agent, tourneeId, typeTournee, timestamp, lat || null, lng || null, accuracy || null]);
 
-    // Insérer validation
+    // Insérer validation (avec la position GPS capturée à ce moment, si disponible)
     await pool.query(`
-      INSERT INTO validations (session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type, commentaire, photo, timestamp)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [sessionId, agent, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaire || null, photo || null, timestamp]);
+      INSERT INTO validations (session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type, commentaire, photo, timestamp, lat, lng, accuracy)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `, [sessionId, agent, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaire || null, photo || null, timestamp, lat || null, lng || null, accuracy || null]);
 
     res.json({ ok: true });
   } catch (err) {
