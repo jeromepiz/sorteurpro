@@ -348,6 +348,34 @@ let selectedAnomalyId   = null;
 let currentPhotoBase64  = null;
 let currentActionIdx    = null;
 let selectedTypeTournee = null;
+let geoWatchId           = null;
+let currentGeo           = null; // { lat, lng, accuracy } — dernière position connue du téléphone
+
+// ═══════════════════════════════════════════
+//  LOCALISATION PASSIVE (mise à jour en continu pendant la tournée)
+// ═══════════════════════════════════════════
+function startLocationWatch() {
+  if (!('geolocation' in navigator) || geoWatchId !== null) return;
+  geoWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      currentGeo = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy
+      };
+    },
+    () => { /* refusé ou indisponible : on continue sans bloquer la tournée */ },
+    { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
+  );
+}
+
+function stopLocationWatch() {
+  if (geoWatchId !== null) {
+    navigator.geolocation.clearWatch(geoWatchId);
+    geoWatchId = null;
+  }
+  currentGeo = null;
+}
 
 // ═══════════════════════════════════════════
 //  PERSISTANCE SESSION (reprise après déco)
@@ -437,6 +465,7 @@ function reprendretournee() {
   session.startTime   = saved.startTime ? new Date(saved.startTime) : new Date();
   session.results     = saved.results || {};
   applyTypeTournee();
+  startLocationWatch();
   document.getElementById('list-start-time').textContent = fmt(session.startTime);
   setListTypeInfo();
   renderList();
@@ -539,6 +568,7 @@ function startTournee() {
 
   saveSession();
   applyTypeTournee();
+  startLocationWatch();
   document.getElementById('list-start-time').textContent = fmt(session.startTime);
   setListTypeInfo();
   renderList();
@@ -753,7 +783,10 @@ function validateAddr(isAnomalie) {
       commentaire:  commentaire,
       photo:        isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null,
       timestamp:    result.timestamp,
-      startTime:    session.startTime.toISOString()
+      startTime:    session.startTime.toISOString(),
+      lat:          currentGeo ? currentGeo.lat : null,
+      lng:          currentGeo ? currentGeo.lng : null,
+      accuracy:     currentGeo ? currentGeo.accuracy : null
     })
   }).catch(() => {});
 
@@ -767,6 +800,7 @@ function validateAddr(isAnomalie) {
 // ═══════════════════════════════════════════
 async function showFinish() {
   session.endTime = new Date();
+  stopLocationWatch();
   const addrs     = session.tourneeData.addresses;
   const duree     = session.endTime - session.startTime;
   const vals      = Object.values(session.results);
