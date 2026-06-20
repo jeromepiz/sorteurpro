@@ -660,56 +660,23 @@ function openModal(session, validations) {
 function closeModal(e) { if(e.target===document.getElementById('modal-overlay')) closeModalDirect(); }
 function closeModalDirect() { document.getElementById('modal-overlay').classList.remove('open'); }
 
-// ─── LOCALISATION DU TÉLÉPHONE (tournée en cours uniquement) ───
-const locPolls = {}; // sessionId -> interval id, pour éviter les requêtes en double
-
+// ─── LOCALISATION DU TÉLÉPHONE (dernière position connue, capturée passivement) ───
 async function requestLocation(sessionId, btnEl) {
-  if (!sessionId || locPolls[sessionId]) return;
+  if (!sessionId) return;
 
   btnEl.disabled = true;
   btnEl.classList.add('spinning');
   btnEl.textContent = '⏳';
 
   try {
-    const res = await fetch('/api/location/request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(()=>({}));
-      showToast(err.error || 'Tournée terminée, localisation impossible', '#c0392b');
-      resetLocBtn(btnEl);
-      return;
-    }
+    const r = await fetch(`/api/location/status/${sessionId}`);
+    const data = await r.json();
+    showLocationResult(data);
   } catch (e) {
     showToast('Erreur réseau', '#c0392b');
+  } finally {
     resetLocBtn(btnEl);
-    return;
   }
-
-  let elapsed = 0;
-  const maxWait = 45000, step = 2500;
-  locPolls[sessionId] = setInterval(async () => {
-    elapsed += step;
-    try {
-      const r = await fetch(`/api/location/status/${sessionId}`);
-      const data = await r.json();
-      if (data.loc_status && data.loc_status !== 'pending') {
-        clearInterval(locPolls[sessionId]);
-        delete locPolls[sessionId];
-        resetLocBtn(btnEl);
-        showLocationResult(data);
-        return;
-      }
-    } catch (e) {}
-    if (elapsed >= maxWait) {
-      clearInterval(locPolls[sessionId]);
-      delete locPolls[sessionId];
-      resetLocBtn(btnEl);
-      showLocationResult({ loc_status: 'no_response' });
-    }
-  }, step);
 }
 
 function resetLocBtn(btnEl) {
@@ -722,33 +689,21 @@ function showLocationResult(data) {
   const content = document.getElementById('loc-result-content');
   const ts = data.loc_captured_at ? fmt(data.loc_captured_at) : '';
 
-  if (data.loc_status === 'ok') {
+  if (data.loc_lat != null && data.loc_lng != null) {
     const lat = parseFloat(data.loc_lat), lng = parseFloat(data.loc_lng);
     const acc = data.loc_accuracy ? Math.round(data.loc_accuracy) : null;
     content.innerHTML = `
       <div class="loc-icon">📍</div>
-      <div class="loc-title">Position reçue</div>
-      <div class="loc-sub">À ${ts}${acc ? ` · précision ≈ ${acc} m` : ''}</div>
+      <div class="loc-title">Dernière position connue</div>
+      <div class="loc-sub">Capturée à ${ts}${acc ? ` · précision ≈ ${acc} m` : ''}</div>
       <div class="loc-coords">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
       <a class="btn btn-blue" target="_blank" href="https://www.google.com/maps?q=${lat},${lng}">🗺️ Ouvrir sur la carte</a>
       <button class="btn" style="background:var(--blue-light);color:var(--blue);" onclick="closeLocationResult()">Fermer</button>`;
-  } else if (data.loc_status === 'denied') {
-    content.innerHTML = `
-      <div class="loc-icon">🚫</div>
-      <div class="loc-title">Localisation refusée</div>
-      <div class="loc-sub">Le sorteur a refusé l'accès GPS sur son téléphone.</div>
-      <button class="btn" style="background:var(--blue-light);color:var(--blue);" onclick="closeLocationResult()">Fermer</button>`;
-  } else if (data.loc_status === 'no_response') {
-    content.innerHTML = `
-      <div class="loc-icon">📡</div>
-      <div class="loc-title">Pas de réponse</div>
-      <div class="loc-sub">L'app du sorteur n'a pas répondu (téléphone hors connexion ou app fermée).</div>
-      <button class="btn" style="background:var(--blue-light);color:var(--blue);" onclick="closeLocationResult()">Fermer</button>`;
   } else {
     content.innerHTML = `
-      <div class="loc-icon">⚠️</div>
-      <div class="loc-title">Erreur de localisation</div>
-      <div class="loc-sub">Le téléphone n'a pas pu fournir sa position.</div>
+      <div class="loc-icon">📡</div>
+      <div class="loc-title">Aucune position connue</div>
+      <div class="loc-sub">La tournée vient peut-être de démarrer, ou le sorteur n'a pas encore autorisé la géolocalisation sur son téléphone.</div>
       <button class="btn" style="background:var(--blue-light);color:var(--blue);" onclick="closeLocationResult()">Fermer</button>`;
   }
   document.getElementById('loc-result-overlay').classList.add('open');
