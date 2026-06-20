@@ -180,7 +180,7 @@ app.post('/api/validation', async (req, res) => {
     // Upsert session — met aussi à jour la dernière position connue si le téléphone en a transmis une
     await pool.query(`
       INSERT INTO sessions (id, agent, tournee_id, type_tournee, start_time, loc_lat, loc_lng, loc_accuracy, loc_captured_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $6 IS NOT NULL THEN NOW() END)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $6::double precision IS NOT NULL THEN NOW() END)
       ON CONFLICT (id) DO UPDATE SET
         agent = EXCLUDED.agent,
         type_tournee = COALESCE(sessions.type_tournee, EXCLUDED.type_tournee),
