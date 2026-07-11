@@ -329,13 +329,6 @@ app.get('/api/dashboard', async (req, res) => {
       ORDER BY v.timestamp DESC
     `, [targetDate]);
 
-    const allValidationsRes = await pool.query(`
-      SELECT v.* FROM validations v
-      JOIN sessions s ON s.id = v.session_id
-      WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1
-      ORDER BY v.timestamp DESC
-    `, [targetDate]);
-
     const statsRes = await pool.query(`
       SELECT
         COUNT(DISTINCT s.id) as total_sessions,
@@ -359,12 +352,39 @@ app.get('/api/dashboard', async (req, res) => {
     res.json({
       sessions,
       anomalies: anomaliesRes.rows,
-      validations: allValidationsRes.rows,
       stats: statsRes.rows[0],
       date: targetDate
     });
   } catch (err) {
     console.error('Erreur dashboard:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : VERSION DASHBOARD (léger, sans photos) ────────────────────────────
+// Utilisé pour le polling automatique : renvoie juste de quoi détecter un
+// changement (compteurs + dernier timestamp), sans transférer les données
+// complètes (ni les photos). Le dashboard ne re-télécharge /api/dashboard en
+// entier que si cette empreinte a changé depuis le dernier appel.
+app.get('/api/dashboard/version', async (req, res) => {
+  try {
+    const { date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    const r = await pool.query(`
+      SELECT
+        COUNT(DISTINCT s.id) as session_count,
+        COUNT(v.id) as validation_count,
+        COUNT(CASE WHEN v.anomalie THEN 1 END) as anomaly_count,
+        MAX(v.timestamp) as last_validation,
+        MAX(s.end_time) as last_end
+      FROM sessions s
+      LEFT JOIN validations v ON v.session_id = s.id
+      WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1
+    `, [targetDate]);
+
+    res.json(r.rows[0]);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
