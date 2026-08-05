@@ -57,6 +57,7 @@ async function initDB() {
     ALTER TABLE validations ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
     ALTER TABLE validations ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
     ALTER TABLE validations ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION;
+    ALTER TABLE validations ADD COLUMN IF NOT EXISTS collecte_effectuee BOOLEAN;
   `);
   console.log('✅ Base PostgreSQL initialisée');
 }
@@ -103,13 +104,18 @@ function generateAnomaliesPDF(session, anomalies, withPhotos) {
       const photoHTML = (withPhotos && a.photo)
         ? `<div style="margin-top:10px;"><img src="${a.photo}" style="max-width:100%;max-height:300px;border-radius:6px;border:1px solid #ddd;" alt="Photo anomalie"/></div>`
         : '';
+      const collecteHTML = a.collecte_effectuee === true
+        ? `<span style="background:#e8f5e9;color:#1b5e20;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;margin-left:6px;">✅ Collecte effectuée</span>`
+        : a.collecte_effectuee === false
+        ? `<span style="background:#ffebee;color:#b71c1c;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;margin-left:6px;">❌ Collecte non effectuée</span>`
+        : '';
       return `
         <div style="background:#fff8f8;border-left:4px solid #e53e3e;border-radius:6px;padding:14px;margin-bottom:14px;page-break-inside:avoid;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <span style="font-weight:700;font-size:15px;color:#1a1a2e;">📍 ${a.adresse}</span>
             <span style="background:#e53e3e;color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;">⚠️ ${a.anomalie_type || 'Anomalie'}</span>
           </div>
-          <div style="color:#666;font-size:12px;margin-bottom:6px;">🕐 ${heure}</div>
+          <div style="color:#666;font-size:12px;margin-bottom:6px;">🕐 ${heure}${collecteHTML}</div>
           ${a.commentaire ? `<div style="background:#fff;border:1px solid #fecaca;border-radius:4px;padding:8px;font-size:13px;color:#444;">${a.commentaire}</div>` : ''}
           ${photoHTML}
         </div>`;
@@ -178,7 +184,7 @@ app.get('/api/tournees', (req, res) => {
 // ─── API : VALIDATION ────────────────────────────────────────────────────────
 app.post('/api/validation', async (req, res) => {
   try {
-    const { sessionId, agent, tourneeId, typeTournee, adresse, anomalie, anomalieType, commentaire, photo, timestamp, lat, lng, accuracy } = req.body;
+    const { sessionId, agent, tourneeId, typeTournee, adresse, anomalie, anomalieType, collecteEffectuee, commentaire, photo, timestamp, lat, lng, accuracy } = req.body;
 
     // Upsert session — met aussi à jour la dernière position connue si le téléphone en a transmis une
     await pool.query(`
@@ -195,9 +201,9 @@ app.post('/api/validation', async (req, res) => {
 
     // Insérer validation (avec la position GPS capturée à ce moment, si disponible)
     await pool.query(`
-      INSERT INTO validations (session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type, commentaire, photo, timestamp, lat, lng, accuracy)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-    `, [sessionId, agent, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaire || null, photo || null, timestamp, lat || null, lng || null, accuracy || null]);
+      INSERT INTO validations (session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type, commentaire, photo, timestamp, lat, lng, accuracy, collecte_effectuee)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    `, [sessionId, agent, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaire || null, photo || null, timestamp, lat || null, lng || null, accuracy || null, typeof collecteEffectuee === 'boolean' ? collecteEffectuee : null]);
 
     res.json({ ok: true });
   } catch (err) {
@@ -434,6 +440,34 @@ function parseAdresse(adresse) {
   return { numero: '', voie: adresse.trim() };
 }
 
+// Libellés propres (sans emoji) pour l'export Excel — inclut les anciens codes
+// pour que les anomalies historiques restent lisibles dans l'export.
+const ANOMALY_LABELS_EXPORT = {
+  porte_fermee_non_sorti: 'Porte fermée : bac non sorti',
+  porte_fermee_non_rentre: 'Porte fermée : bac non rentré',
+  absence_bloc_porte: 'Absence de bloc-porte',
+  absence_lumiere: 'Absence de lumière',
+  local_encombre: 'Local encombré',
+  bac_inaccessible: 'Bac inaccessible',
+  absence_bacs: 'Absence de bacs',
+  effectue_riverain: 'Effectué par riverain',
+  local_insalubre: 'Local insalubre / nuisibles',
+  squat: 'Squat',
+  autre: 'Autre',
+  // Anciens codes (avant la mise à jour de la liste)
+  bac_absent: 'Bac non sorti', acces_bloque: 'Accès bloqué',
+  bac_endommage: 'Bac endommagé', bac_plein: 'Bac trop plein',
+  mauvais_tri: 'Mauvais tri', bac_non_rentre: 'Non rentré',
+  adresse_absente: 'Adresse introuvable'
+};
+function anomalyLabelExport(type) {
+  return ANOMALY_LABELS_EXPORT[type] || type || '';
+}
+
+// Prestataire assurant la collecte — à ajuster ici si besoin (pas encore
+// une donnée saisie ailleurs dans l'appli).
+const PRESTATAIRE_DEFAUT = '';
+
 // ─── API : EXPORT EXCEL ANOMALIES ────────────────────────────────────────────
 app.get('/api/export/excel', async (req, res) => {
   try {
@@ -477,56 +511,75 @@ app.get('/api/export/excel', async (req, res) => {
 
     const anomalies = (await pool.query(anomaliesQuery, params)).rows;
 
-    // ── Construction de la feuille ──
+    // ── Construction de la feuille (format calé sur Exemple_extraction.xlsx) ──
     const wb = XLSX.utils.book_new();
 
-    // En-têtes colonnes A→J
+    // En-têtes A→J identiques à l'exemple, + 2 colonnes bonus en fin de
+    // tableau (K, L) pour ne pas perdre la traçabilité agent / sortie-rentrée.
     const headers = [
-      'Date',           // A
-      'Heure',          // B
-      'N° Tournée',     // C
-      'Commune',        // D (vide pour l'instant)
-      'N° de rue',      // E
-      'Adresse',        // F (sans le numéro)
-      'Type d\'anomalie', // G
-      'Commentaire',    // H
-      'Sortie / Rentrée', // I
-      'Nom Prénom sorteur' // J
+      'Date',              // A
+      'Heure',             // B
+      'N° circuit',        // C
+      'Commune',           // D (vide pour l'instant, cf. remarque)
+      'N° rue',            // E
+      'Adresse',           // F
+      'Type anomalie',     // G
+      'Complément',        // H
+      'Collecte',          // I  O / N
+      'Prestataire',       // J
+      'Sortie / Rentrée',  // K (bonus, hors format exemple)
+      'Nom Prénom sorteur' // L (bonus, hors format exemple)
     ];
 
     const rows = anomalies.map(a => {
       const ts = a.timestamp ? new Date(a.timestamp) : null;
       const { numero, voie } = parseAdresse(a.adresse);
+      // N° rue : nombre pur si possible (ex. "9"), sinon texte tel quel (ex. "9-10")
+      const numeroCell = /^\d+$/.test(numero) ? Number(numero) : numero;
+      const collecteCode = a.collecte_effectuee === true ? 'O' : a.collecte_effectuee === false ? 'N' : '';
       return [
-        ts ? ts.toLocaleDateString('fr-FR') : '',           // A - Date
-        ts ? ts.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '', // B - Heure
-        a.tournee_id || '',                                 // C - N° Tournée
-        '',                                                 // D - Commune (vide)
-        numero,                                             // E - N° de rue
-        voie,                                               // F - Adresse sans numéro
-        a.anomalie_type || '',                              // G - Type anomalie
-        a.commentaire || '',                                // H - Commentaire
-        a.type_tournee || '',                               // I - Sortie / Rentrée
-        a.agent || ''                                       // J - Nom Prénom sorteur
+        ts,                                   // A - Date (valeur date réelle)
+        ts,                                   // B - Heure (valeur heure réelle)
+        a.tournee_id || '',                   // C - N° circuit
+        '',                                   // D - Commune (vide)
+        numeroCell,                           // E - N° rue
+        voie,                                 // F - Adresse
+        anomalyLabelExport(a.anomalie_type),  // G - Type anomalie
+        a.commentaire || '',                  // H - Complément
+        collecteCode,                         // I - Collecte (O/N)
+        PRESTATAIRE_DEFAUT,                   // J - Prestataire
+        a.type_tournee || '',                 // K - Sortie / Rentrée (bonus)
+        a.agent || ''                         // L - Nom Prénom sorteur (bonus)
       ];
     });
 
     // Construire la feuille manuellement (header + données)
     const wsData = [headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const ws = XLSX.utils.aoa_to_sheet(wsData, { cellDates: true });
 
-    // Largeurs de colonnes optimisées
+    // Format des colonnes Date / Heure en valeurs Excel réelles (triables, filtrables)
+    for (let r = 0; r < rows.length; r++) {
+      const rowNum = r + 2; // +1 pour l'en-tête, +1 car 1-indexé
+      const dateCell = ws[`A${rowNum}`];
+      const heureCell = ws[`B${rowNum}`];
+      if (dateCell && dateCell.v) dateCell.z = 'dd/mm/yyyy';
+      if (heureCell && heureCell.v) heureCell.z = 'hh:mm';
+    }
+
+    // Largeurs de colonnes
     ws['!cols'] = [
       { wch: 12 }, // A Date
       { wch: 8  }, // B Heure
-      { wch: 12 }, // C N° Tournée
+      { wch: 12 }, // C N° circuit
       { wch: 16 }, // D Commune
-      { wch: 10 }, // E N° de rue
+      { wch: 8  }, // E N° rue
       { wch: 32 }, // F Adresse
-      { wch: 22 }, // G Type anomalie
-      { wch: 36 }, // H Commentaire
-      { wch: 14 }, // I Sortie/Rentrée
-      { wch: 24 }, // J Nom Prénom
+      { wch: 26 }, // G Type anomalie
+      { wch: 30 }, // H Complément
+      { wch: 10 }, // I Collecte
+      { wch: 16 }, // J Prestataire
+      { wch: 14 }, // K Sortie/Rentrée
+      { wch: 24 }, // L Nom Prénom
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Anomalies');
