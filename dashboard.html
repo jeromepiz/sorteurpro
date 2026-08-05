@@ -426,11 +426,30 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 
 <script>
 const ANOMALY_LABELS = {
-  bac_absent:'🗑️ Bac non sorti', acces_bloque:'🚧 Accès bloqué',
-  bac_endommage:'🔨 Bac endommagé', bac_plein:'🔴 Bac trop plein',
-  mauvais_tri:'♻️ Mauvais tri', bac_non_rentre:'↩️ Non rentré',
-  adresse_absente:'❓ Adresse introuvable', autre:'📝 Autre'
+  // Types actifs (sélectionnables par les sorteurs)
+  porte_fermee_non_sorti:'🚪 Porte fermée : bac non sorti',
+  porte_fermee_non_rentre:'🚪 Porte fermée : bac non rentré',
+  absence_bloc_porte:'🔓 Absence de bloc-porte',
+  absence_lumiere:'💡 Absence de lumière',
+  local_encombre:'📦 Local encombré',
+  bac_inaccessible:'🚫 Bac inaccessible',
+  absence_bacs:'🗑️ Absence de bacs',
+  effectue_riverain:'🙋 Effectué par riverain',
+  local_insalubre:'🐀 Local insalubre / nuisibles',
+  squat:'🏚️ Squat',
+  autre:'📝 Autre',
+  // Anciens codes conservés pour l'affichage correct des anomalies historiques
+  bac_absent:'🗑️ Bac non sorti (ancien)', acces_bloque:'🚧 Accès bloqué (ancien)',
+  bac_endommage:'🔨 Bac endommagé (ancien)', bac_plein:'🔴 Bac trop plein (ancien)',
+  mauvais_tri:'♻️ Mauvais tri (ancien)', bac_non_rentre:'↩️ Non rentré (ancien)',
+  adresse_absente:'❓ Adresse introuvable (ancien)'
 };
+
+function collecteBadge(v) {
+  if (v.collecte_effectuee === true)  return `<span class="badge" style="background:#e8f5e9;color:#1b5e20;">✅ Collecte Oui</span>`;
+  if (v.collecte_effectuee === false) return `<span class="badge" style="background:#ffebee;color:#b71c1c;">❌ Collecte Non</span>`;
+  return '';
+}
 
 let dashData = { stats:{}, sessions:[], anomalies:[], validations:[] };
 let currentModalSession = null;
@@ -453,6 +472,10 @@ function typeBadge(type) {
 // ─── CHARGEMENT DASHBOARD ───
 let lastVersionKey = null;
 
+function versionKeyFrom(v) {
+  return `${v.session_count}-${v.validation_count}-${v.anomaly_count}-${v.last_validation}-${v.last_end}`;
+}
+
 // Chargement complet (sessions + anomalies + photos). Toujours utilisé au
 // premier affichage, sur clic "Actualiser", ou quand checkForUpdates détecte
 // un vrai changement.
@@ -474,10 +497,6 @@ async function loadDashboard() {
 
   // Charge aussi les rapports PDF
   loadPdfReports();
-}
-
-function versionKeyFrom(v) {
-  return `${v.session_count}-${v.validation_count}-${v.anomaly_count}-${v.last_validation}-${v.last_end}`;
 }
 
 // Vérification légère (aucune photo transférée) : ne recharge les données
@@ -621,7 +640,7 @@ function renderAnomalies(anomalies) {
       <div style="font-size:20px;flex-shrink:0;margin-top:1px;">⚠️</div>
       <div class="anomalie-info">
         <div class="anomalie-adresse">${a.adresse||'—'}</div>
-        <div class="anomalie-meta">${a.agent} · ${a.tournee_id} ${typeBadge(a.type_tournee)} · <strong>${anomLabel(a.anomalie_type)}</strong></div>
+        <div class="anomalie-meta">${a.agent} · ${a.tournee_id} ${typeBadge(a.type_tournee)} · <strong>${anomLabel(a.anomalie_type)}</strong> ${collecteBadge(a)}</div>
         ${a.commentaire?`<div class="anomalie-comment">💬 ${a.commentaire}</div>`:''}
         ${a.photo?`<img class="anomalie-photo" src="${a.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
       </div>
@@ -705,7 +724,7 @@ function openModal(session, validations) {
         <div class="addr-item-info">
           <div class="addr-item-name">${v.adresse}</div>
           <div class="addr-item-time">⏱ ${fmt(v.timestamp)}</div>
-          ${isAnom?`<div class="addr-item-anomaly">${anomLabel(v.anomalie_type)}${v.commentaire?' — '+v.commentaire:''}</div>`:''}
+          ${isAnom?`<div class="addr-item-anomaly">${anomLabel(v.anomalie_type)}${v.collecte_effectuee===true?' · Collecte Oui':v.collecte_effectuee===false?' · Collecte Non':''}${v.commentaire?' — '+v.commentaire:''}</div>`:''}
           ${isAnom&&v.photo?`<img class="addr-item-photo" src="${v.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
         </div>
         <div class="addr-item-status">${isAnom?`<span class="badge badge-anomalie">⚠️</span>`:`<span class="badge badge-terminee">✅ OK</span>`}</div>`;
@@ -954,7 +973,7 @@ function buildAndPrintPdf(selected) {
             <div class="pdf-addr-info" style="flex:1;">
               <div class="pdf-addr-name">${v.adresse}</div>
               <div class="pdf-addr-time">⏱ ${fmt(v.timestamp)}</div>
-              ${isAnom?`<div class="pdf-addr-anomaly">${anomLabel(v.anomalie_type)}</div>`:''}
+              ${isAnom?`<div class="pdf-addr-anomaly">${anomLabel(v.anomalie_type)}${v.collecte_effectuee===true?' · Collecte Oui':v.collecte_effectuee===false?' · Collecte Non':''}</div>`:''}
               ${isAnom&&v.commentaire?`<div class="pdf-addr-comment">💬 ${v.commentaire}</div>`:''}
               ${photoHtml}
             </div>
