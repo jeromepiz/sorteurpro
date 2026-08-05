@@ -273,6 +273,11 @@
       <div class="anomaly-panel" id="anomaly-panel">
         <label>Type d'anomalie *</label>
         <div class="chips" id="anomaly-chips"></div>
+        <label>La collecte a-t-elle été effectuée ? *</label>
+        <div class="chips" id="collecte-chips">
+          <button type="button" class="chip" onclick="selectCollecte(true, this)">✅ Oui</button>
+          <button type="button" class="chip" onclick="selectCollecte(false, this)">❌ Non</button>
+        </div>
         <label>Commentaire (optionnel)</label>
         <textarea id="anomaly-text" placeholder="Précisez si nécessaire…"></textarea>
         <div class="photo-zone">
@@ -325,14 +330,17 @@
 //  CONSTANTES
 // ═══════════════════════════════════════════
 const ANOMALY_TYPES = [
-  { id:"bac_absent",      label:"🗑️ Bac non sorti" },
-  { id:"acces_bloque",    label:"🚧 Accès bloqué" },
-  { id:"bac_endommage",   label:"🔨 Bac endommagé" },
-  { id:"bac_plein",       label:"🔴 Bac trop plein" },
-  { id:"mauvais_tri",     label:"♻️ Mauvais tri" },
-  { id:"bac_non_rentre",  label:"↩️ Non rentré" },
-  { id:"adresse_absente", label:"❓ Adresse introuvable" },
-  { id:"autre",           label:"📝 Autre" },
+  { id:"porte_fermee_non_sorti",  label:"🚪 Porte fermée : bac non sorti" },
+  { id:"porte_fermee_non_rentre", label:"🚪 Porte fermée : bac non rentré" },
+  { id:"absence_bloc_porte",      label:"🔓 Absence de bloc-porte" },
+  { id:"absence_lumiere",         label:"💡 Absence de lumière" },
+  { id:"local_encombre",          label:"📦 Local encombré" },
+  { id:"bac_inaccessible",        label:"🚫 Bac inaccessible" },
+  { id:"absence_bacs",            label:"🗑️ Absence de bacs" },
+  { id:"effectue_riverain",       label:"🙋 Effectué par riverain" },
+  { id:"local_insalubre",         label:"🐀 Local insalubre / nuisibles" },
+  { id:"squat",                   label:"🏚️ Squat" },
+  { id:"autre",                   label:"📝 Autre" },
 ];
 const STORAGE_KEY = 'sorteurpro_session';
 
@@ -345,6 +353,7 @@ let session = {
   startTime:null, endTime:null, results:{}
 };
 let selectedAnomalyId   = null;
+let collecteEffectuee   = null; // true / false / null (pas encore répondu)
 let currentPhotoBase64  = null;
 let currentActionIdx    = null;
 let selectedTypeTournee = null;
@@ -621,7 +630,8 @@ function renderList() {
       if (res.anomalie) {
         const anomEl = document.createElement('div');
         anomEl.className = 'addr-anomaly';
-        anomEl.textContent = '⚠️ ' + anomalyLabel(res.anomalieType) + (res.commentaire ? ' — ' + res.commentaire : '') + (res.photo ? ' 📷' : '');
+        const collecteTxt = res.collecteEffectuee === true ? ' · Collecte : Oui' : res.collecteEffectuee === false ? ' · Collecte : Non' : '';
+        anomEl.textContent = '⚠️ ' + anomalyLabel(res.anomalieType) + collecteTxt + (res.commentaire ? ' — ' + res.commentaire : '') + (res.photo ? ' 📷' : '');
         info.appendChild(anomEl);
       }
     }
@@ -670,7 +680,7 @@ function openAction(idx) {
   resetPhoto();
   buildChips();
   selectedAnomalyId = null;
-  document.getElementById('btn-confirm-ko').disabled = true;
+  updateConfirmKoState();
 
   showScreen('screen-action');
 }
@@ -682,13 +692,30 @@ function buildChips() {
     const chip = document.createElement('button');
     chip.className = 'chip'; chip.textContent = a.label;
     chip.onclick = () => {
-      document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+      document.querySelectorAll('#anomaly-chips .chip').forEach(c => c.classList.remove('selected'));
       chip.classList.add('selected');
       selectedAnomalyId = a.id;
-      document.getElementById('btn-confirm-ko').disabled = false;
+      updateConfirmKoState();
     };
     grid.appendChild(chip);
   });
+  resetCollecte();
+}
+
+function selectCollecte(val, btn) {
+  collecteEffectuee = val;
+  document.querySelectorAll('#collecte-chips .chip').forEach(c => c.classList.remove('selected'));
+  btn.classList.add('selected');
+  updateConfirmKoState();
+}
+
+function resetCollecte() {
+  collecteEffectuee = null;
+  document.querySelectorAll('#collecte-chips .chip').forEach(c => c.classList.remove('selected'));
+}
+
+function updateConfirmKoState() {
+  document.getElementById('btn-confirm-ko').disabled = !(selectedAnomalyId && collecteEffectuee !== null);
 }
 
 function toggleAnomalyPanel() {
@@ -753,15 +780,16 @@ function resetPhoto() {
 //  VALIDATION
 // ═══════════════════════════════════════════
 function validateAddr(isAnomalie) {
-  if (isAnomalie && !selectedAnomalyId) return;
+  if (isAnomalie && (!selectedAnomalyId || collecteEffectuee === null)) return;
 
   const commentaire = document.getElementById('anomaly-text').value.trim();
   const result = {
-    timestamp:    new Date().toISOString(),
-    anomalie:     isAnomalie,
-    anomalieType: isAnomalie ? selectedAnomalyId : null,
-    commentaire:  commentaire,
-    photo:        isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null
+    timestamp:          new Date().toISOString(),
+    anomalie:           isAnomalie,
+    anomalieType:       isAnomalie ? selectedAnomalyId : null,
+    collecteEffectuee:  isAnomalie ? collecteEffectuee : null,
+    commentaire:        commentaire,
+    photo:              isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null
   };
 
   session.results[currentActionIdx] = result;
@@ -780,6 +808,7 @@ function validateAddr(isAnomalie) {
       adresse:      session.tourneeData.addresses[currentActionIdx].name,
       anomalie:     isAnomalie,
       anomalieType: isAnomalie ? selectedAnomalyId : null,
+      collecteEffectuee: isAnomalie ? collecteEffectuee : null,
       commentaire:  commentaire,
       photo:        isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null,
       timestamp:    result.timestamp,
@@ -880,7 +909,7 @@ async function showFinish() {
       </div>
       ${res.photo ? `<img class="detail-photo" src="${res.photo}" alt="Photo">` : ''}
       ${res.anomalie
-        ? `<span class="badge badge-ko">⚠️ ${anomalyLabel(res.anomalieType)}</span>`
+        ? `<span class="badge badge-ko">⚠️ ${anomalyLabel(res.anomalieType)}${res.collecteEffectuee === true ? ' · Collecte Oui' : res.collecteEffectuee === false ? ' · Collecte Non' : ''}</span>`
         : `<span class="badge badge-ok">✅ OK</span>`}
     `;
     detail.appendChild(row);
