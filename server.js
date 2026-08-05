@@ -71,6 +71,19 @@ function readTournees() {
   wb.SheetNames.forEach(name => {
     if (ONGLETS_A_IGNORER.includes(name)) return;
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1 });
+
+    // La commune est indiquée sur une ligne "Commune" / <valeur> (généralement
+    // en A2/B2, mais on scanne les premières lignes pour rester robuste si
+    // la mise en page d'un onglet varie légèrement).
+    let commune = '';
+    for (let i = 0; i < Math.min(rows.length, 5); i++) {
+      const label = rows[i] && rows[i][0] ? String(rows[i][0]).trim().toLowerCase() : '';
+      if (label === 'commune' && rows[i][1]) {
+        commune = String(rows[i][1]).trim();
+        break;
+      }
+    }
+
     const addresses = [];
     rows.forEach(row => {
       const adresse = row[1];
@@ -83,7 +96,7 @@ function readTournees() {
         sub: [complement, nbBacs].filter(Boolean).join(' — ')
       });
     });
-    tournees[name] = { label: name, addresses };
+    tournees[name] = { label: name, commune, addresses };
   });
   return tournees;
 }
@@ -511,6 +524,10 @@ app.get('/api/export/excel', async (req, res) => {
 
     const anomalies = (await pool.query(anomaliesQuery, params)).rows;
 
+    // Commune par tournée (lue depuis tournees_sorteurs.xlsx)
+    let tournees = {};
+    try { tournees = readTournees(); } catch (e) { console.error('Erreur lecture communes:', e); }
+
     // ── Construction de la feuille (format calé sur Exemple_extraction.xlsx) ──
     const wb = XLSX.utils.book_new();
 
@@ -537,11 +554,12 @@ app.get('/api/export/excel', async (req, res) => {
       // N° rue : nombre pur si possible (ex. "9"), sinon texte tel quel (ex. "9-10")
       const numeroCell = /^\d+$/.test(numero) ? Number(numero) : numero;
       const collecteCode = a.collecte_effectuee === true ? 'O' : a.collecte_effectuee === false ? 'N' : '';
+      const commune = (tournees[a.tournee_id] && tournees[a.tournee_id].commune) || '';
       return [
         ts,                                   // A - Date (valeur date réelle)
         ts,                                   // B - Heure (valeur heure réelle)
         a.tournee_id || '',                   // C - N° circuit
-        '',                                   // D - Commune (vide)
+        commune,                              // D - Commune
         numeroCell,                           // E - N° rue
         voie,                                 // F - Adresse
         anomalyLabelExport(a.anomalie_type),  // G - Type anomalie
