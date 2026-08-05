@@ -479,7 +479,7 @@ function anomalyLabelExport(type) {
 
 // Prestataire assurant la collecte — à ajuster ici si besoin (pas encore
 // une donnée saisie ailleurs dans l'appli).
-const PRESTATAIRE_DEFAUT = '';
+const PRESTATAIRE_DEFAUT = 'Pizzorno';
 
 // ─── API : EXPORT EXCEL ANOMALIES ────────────────────────────────────────────
 app.get('/api/export/excel', async (req, res) => {
