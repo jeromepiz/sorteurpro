@@ -273,13 +273,17 @@
       <div class="anomaly-panel" id="anomaly-panel">
         <label>Type d'anomalie *</label>
         <div class="chips" id="anomaly-chips"></div>
+        <div id="precision-block" style="display:none;">
+          <label>Précision *</label>
+          <div class="chips" id="precision-chips"></div>
+        </div>
         <label>La collecte a-t-elle été effectuée ? *</label>
         <div class="chips" id="collecte-chips">
           <button type="button" class="chip" onclick="selectCollecte(true, this)">✅ Oui</button>
           <button type="button" class="chip" onclick="selectCollecte(false, this)">❌ Non</button>
         </div>
-        <label>Commentaire (optionnel)</label>
-        <textarea id="anomaly-text" placeholder="Précisez si nécessaire…"></textarea>
+        <label id="comment-label">Commentaire (optionnel)</label>
+        <textarea id="anomaly-text" placeholder="Précisez si nécessaire…" oninput="updateConfirmKoState()"></textarea>
         <div class="photo-zone">
           <label>Photo (optionnelle)</label>
           <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)">
@@ -329,19 +333,107 @@
 // ═══════════════════════════════════════════
 //  CONSTANTES
 // ═══════════════════════════════════════════
-const ANOMALY_TYPES = [
-  { id:"porte_fermee_non_sorti",  label:"🚪 Porte fermée : bac non sorti" },
-  { id:"porte_fermee_non_rentre", label:"🚪 Porte fermée : bac non rentré" },
-  { id:"absence_bloc_porte",      label:"🔓 Absence de bloc-porte" },
-  { id:"absence_lumiere",         label:"💡 Absence de lumière" },
-  { id:"local_encombre",          label:"📦 Local encombré" },
-  { id:"bac_inaccessible",        label:"🚫 Bac inaccessible" },
-  { id:"absence_bacs",            label:"🗑️ Absence de bacs" },
-  { id:"effectue_riverain",       label:"🙋 Effectué par riverain" },
-  { id:"local_insalubre",         label:"🐀 Local insalubre / nuisibles" },
-  { id:"squat",                   label:"🏚️ Squat" },
-  { id:"autre",                   label:"📝 Autre" },
+const ANOMALY_TREE = [
+  { id:"sacs_vrac", label:"🛍️ Sacs, vrac à côté du bac", options:[
+    {id:"sacs", label:"Sacs"},
+    {id:"vrac", label:"Vrac"},
+    {id:"sacs_et_vrac", label:"Sacs et vrac"},
+    {id:"encombrants", label:"Encombrants"},
+    {id:"volume_important", label:"Volume important"},
+    {id:"dechets_dangereux", label:"Déchets dangereux"},
+    {id:"sapin", label:"Sapin"},
+    {id:"autre", label:"Autre"},
+  ]},
+  { id:"service_incomplet", label:"🚪 Pb de service complet", options:[
+    {id:"porte_fermee_non_sorti", label:"Porte fermée : bac non sorti"},
+    {id:"porte_fermee_non_rentre", label:"Porte fermée : bac non rentré"},
+    {id:"absence_bloc_porte", label:"Absence de bloc-porte"},
+    {id:"absence_lumiere", label:"Absence de lumière"},
+    {id:"local_encombre", label:"Local encombré"},
+    {id:"bac_inaccessible", label:"Bac inaccessible"},
+    {id:"absence_bacs", label:"Absence de bacs"},
+    {id:"effectue_riverain", label:"Effectué par riverain"},
+    {id:"local_insalubre", label:"Local insalubre / nuisibles"},
+    {id:"squat", label:"Squat"},
+    {id:"autre", label:"Autre"},
+  ]},
+  { id:"tri_mal_trie", label:"♻️ Bac de tri mal trié", options:[
+    {id:"deja_scotche", label:"Déjà scotché"},
+    {id:"sacs_fermes", label:"Sacs fermés"},
+    {id:"verre", label:"Verre"},
+    {id:"encombrants", label:"Encombrants"},
+    {id:"bois_vegetaux", label:"Bois, végétaux"},
+    {id:"textiles", label:"Textiles"},
+    {id:"dechets_alimentaires", label:"Déchets alimentaires"},
+    {id:"gravats", label:"Gravats"},
+    {id:"dechets_animaux", label:"Déchets d'animaux"},
+    {id:"dechets_non_menagers", label:"Déchets non ménagers"},
+    {id:"dechets_dangereux", label:"Déchets dangereux"},
+    {id:"autre", label:"Autre"},
+  ]},
+  { id:"mauvais_contenu_gris", label:"🗑️ Mauvais contenu du bac gris", options:[
+    {id:"verre", label:"Verre"},
+    {id:"dechets_alimentaires", label:"Déchets alimentaires"},
+    {id:"dechets_verts", label:"Déchets verts"},
+    {id:"gravats", label:"Gravats"},
+    {id:"encombrants", label:"Encombrants"},
+    {id:"dechets_animaux", label:"Déchets d'animaux"},
+    {id:"dechets_non_menagers", label:"Déchets non ménagers"},
+    {id:"dechets_dangereux", label:"Déchets dangereux"},
+    {id:"autre", label:"Autre"},
+  ]},
+  { id:"bac_om_casse", label:"🔨 Bac OM cassé", options:[
+    {id:"cuve", label:"Cuve"},
+    {id:"couvercle", label:"Couvercle"},
+    {id:"roue", label:"Roue"},
+    {id:"collerette", label:"Collerette"},
+    {id:"autre", label:"Autre"},
+  ]},
+  { id:"bac_tri_casse", label:"🔨 Bac Tri cassé", options:[
+    {id:"cuve", label:"Cuve"},
+    {id:"couvercle", label:"Couvercle"},
+    {id:"roues", label:"Roues"},
+    {id:"collerette", label:"Collerette"},
+    {id:"autre", label:"Autre"},
+  ]},
+  { id:"pb_bac_autre", label:"⚠️ Pb de bac autre", options:[
+    {id:"debordant", label:"Débordant"},
+    {id:"a_rentrer", label:"A rentrer"},
+    {id:"trop_lourd", label:"Trop lourd"},
+    {id:"tres_sale", label:"Très sale"},
+    {id:"trop_tasse", label:"Trop tassé"},
+    {id:"non_identifie", label:"Non identifié"},
+    {id:"trop_bacs_surlitrage", label:"Trop de bacs (surlitrage)"},
+    {id:"modele_hors_norme", label:"Modèle hors norme"},
+    {id:"bac_750l", label:"Bac de 750L"},
+    {id:"nuisibles", label:"Nuisibles"},
+    {id:"autre", label:"Autre"},
+  ]},
+  { id:"autre", label:"📝 Autre", options:[
+    {id:"panne", label:"Panne"},
+    {id:"accident", label:"Accident"},
+    {id:"altercation", label:"Altercation"},
+    {id:"agression", label:"Agression"},
+    {id:"autre", label:"Autre"},
+  ]},
 ];
+
+// Libellés à plat, dérivés de l'arbre (utilisés pour ré-afficher une anomalie
+// déjà enregistrée dans cette session : liste des adresses, écran de fin).
+const CATEGORY_LABELS = {};
+const PRECISION_LABELS = {};
+ANOMALY_TREE.forEach(cat => {
+  CATEGORY_LABELS[cat.id] = cat.label.replace(/^\S+\s/, ''); // sans l'emoji
+  cat.options.forEach(opt => { PRECISION_LABELS[opt.id] = opt.label; });
+});
+
+function anomalyFullLabel(type, precision) {
+  if (precision && PRECISION_LABELS[precision]) {
+    const catLabel = CATEGORY_LABELS[type] || type;
+    return `${catLabel} — ${PRECISION_LABELS[precision]}`;
+  }
+  return CATEGORY_LABELS[type] || type || '';
+}
 const STORAGE_KEY = 'sorteurpro_session';
 
 // ═══════════════════════════════════════════
@@ -352,9 +444,10 @@ let session = {
   id: null, agent:"", tourneeId:"", tourneeData:null, typeTournee:null,
   startTime:null, endTime:null, results:{}
 };
-let selectedAnomalyId   = null;
-let collecteEffectuee   = null; // true / false / null (pas encore répondu)
-let currentPhotoBase64  = null;
+let selectedCategoryId   = null;
+let selectedPrecisionId  = null;
+let collecteEffectuee    = null; // true / false / null (pas encore répondu)
+let currentPhotoBase64   = null;
 let currentActionIdx    = null;
 let selectedTypeTournee = null;
 let geoWatchId           = null;
@@ -544,10 +637,6 @@ function fmtDuree(ms) {
   if (h > 0) return `${h}h ${m%60}min`;
   return `${m}min ${s%60}s`;
 }
-function anomalyLabel(id) {
-  const a = ANOMALY_TYPES.find(x => x.id === id);
-  return a ? a.label : 'Anomalie';
-}
 function typeBadgeHtml(type) {
   return type === 'sortie'
     ? `<span class="type-badge sortie">📤 Sortie des bacs</span>`
@@ -631,7 +720,7 @@ function renderList() {
         const anomEl = document.createElement('div');
         anomEl.className = 'addr-anomaly';
         const collecteTxt = res.collecteEffectuee === true ? ' · Collecte : Oui' : res.collecteEffectuee === false ? ' · Collecte : Non' : '';
-        anomEl.textContent = '⚠️ ' + anomalyLabel(res.anomalieType) + collecteTxt + (res.commentaire ? ' — ' + res.commentaire : '') + (res.photo ? ' 📷' : '');
+        anomEl.textContent = '⚠️ ' + anomalyFullLabel(res.anomalieType, res.anomaliePrecision) + collecteTxt + (res.commentaire ? ' — ' + res.commentaire : '') + (res.photo ? ' 📷' : '');
         info.appendChild(anomEl);
       }
     }
@@ -679,7 +768,7 @@ function openAction(idx) {
   document.getElementById('anomaly-text').value = '';
   resetPhoto();
   buildChips();
-  selectedAnomalyId = null;
+  selectedCategoryId = null;
   updateConfirmKoState();
 
   showScreen('screen-action');
@@ -688,18 +777,41 @@ function openAction(idx) {
 function buildChips() {
   const grid = document.getElementById('anomaly-chips');
   grid.innerHTML = '';
-  ANOMALY_TYPES.forEach(a => {
+  ANOMALY_TREE.forEach(cat => {
     const chip = document.createElement('button');
-    chip.className = 'chip'; chip.textContent = a.label;
+    chip.className = 'chip'; chip.textContent = cat.label;
     chip.onclick = () => {
       document.querySelectorAll('#anomaly-chips .chip').forEach(c => c.classList.remove('selected'));
       chip.classList.add('selected');
-      selectedAnomalyId = a.id;
+      selectedCategoryId = cat.id;
+      selectedPrecisionId = null;
+      buildPrecisionChips(cat);
       updateConfirmKoState();
     };
     grid.appendChild(chip);
   });
+  document.getElementById('precision-block').style.display = 'none';
   resetCollecte();
+  document.getElementById('comment-label').textContent = 'Commentaire (optionnel)';
+}
+
+function buildPrecisionChips(cat) {
+  const grid = document.getElementById('precision-chips');
+  grid.innerHTML = '';
+  cat.options.forEach(opt => {
+    const chip = document.createElement('button');
+    chip.className = 'chip'; chip.textContent = opt.label;
+    chip.onclick = () => {
+      document.querySelectorAll('#precision-chips .chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      selectedPrecisionId = opt.id;
+      document.getElementById('comment-label').textContent =
+        opt.id === 'autre' ? 'Précisez *' : 'Commentaire (optionnel)';
+      updateConfirmKoState();
+    };
+    grid.appendChild(chip);
+  });
+  document.getElementById('precision-block').style.display = '';
 }
 
 function selectCollecte(val, btn) {
@@ -715,7 +827,10 @@ function resetCollecte() {
 }
 
 function updateConfirmKoState() {
-  document.getElementById('btn-confirm-ko').disabled = !(selectedAnomalyId && collecteEffectuee !== null);
+  const commentaire = document.getElementById('anomaly-text').value.trim();
+  const precisionOk = selectedPrecisionId && (selectedPrecisionId !== 'autre' || commentaire.length > 0);
+  document.getElementById('btn-confirm-ko').disabled =
+    !(selectedCategoryId && precisionOk && collecteEffectuee !== null);
 }
 
 function toggleAnomalyPanel() {
@@ -780,16 +895,20 @@ function resetPhoto() {
 //  VALIDATION
 // ═══════════════════════════════════════════
 function validateAddr(isAnomalie) {
-  if (isAnomalie && (!selectedAnomalyId || collecteEffectuee === null)) return;
-
   const commentaire = document.getElementById('anomaly-text').value.trim();
+  if (isAnomalie) {
+    const precisionOk = selectedPrecisionId && (selectedPrecisionId !== 'autre' || commentaire.length > 0);
+    if (!selectedCategoryId || !precisionOk || collecteEffectuee === null) return;
+  }
+
   const result = {
     timestamp:          new Date().toISOString(),
-    anomalie:           isAnomalie,
-    anomalieType:       isAnomalie ? selectedAnomalyId : null,
-    collecteEffectuee:  isAnomalie ? collecteEffectuee : null,
-    commentaire:        commentaire,
-    photo:              isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null
+    anomalie:            isAnomalie,
+    anomalieType:        isAnomalie ? selectedCategoryId : null,
+    anomaliePrecision:   isAnomalie ? selectedPrecisionId : null,
+    collecteEffectuee:   isAnomalie ? collecteEffectuee : null,
+    commentaire:         commentaire,
+    photo:               isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null
   };
 
   session.results[currentActionIdx] = result;
@@ -807,7 +926,8 @@ function validateAddr(isAnomalie) {
       adresseIndex: currentActionIdx,
       adresse:      session.tourneeData.addresses[currentActionIdx].name,
       anomalie:     isAnomalie,
-      anomalieType: isAnomalie ? selectedAnomalyId : null,
+      anomalieType: isAnomalie ? selectedCategoryId : null,
+      anomaliePrecision: isAnomalie ? selectedPrecisionId : null,
       collecteEffectuee: isAnomalie ? collecteEffectuee : null,
       commentaire:  commentaire,
       photo:        isAnomalie && currentPhotoBase64 ? currentPhotoBase64 : null,
@@ -909,7 +1029,7 @@ async function showFinish() {
       </div>
       ${res.photo ? `<img class="detail-photo" src="${res.photo}" alt="Photo">` : ''}
       ${res.anomalie
-        ? `<span class="badge badge-ko">⚠️ ${anomalyLabel(res.anomalieType)}${res.collecteEffectuee === true ? ' · Collecte Oui' : res.collecteEffectuee === false ? ' · Collecte Non' : ''}</span>`
+        ? `<span class="badge badge-ko">⚠️ ${anomalyFullLabel(res.anomalieType, res.anomaliePrecision)}${res.collecteEffectuee === true ? ' · Collecte Oui' : res.collecteEffectuee === false ? ' · Collecte Non' : ''}</span>`
         : `<span class="badge badge-ok">✅ OK</span>`}
     `;
     detail.appendChild(row);
