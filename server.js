@@ -163,6 +163,23 @@ function anomalyFullLabel(type, precision) {
   return type || '';
 }
 
+// Pour l'export Excel : "Type anomalie" (niveau 1 seul) et "Complément"
+// (niveau 2 + commentaire éventuel à la suite, ex. "Autre - Cafards").
+function anomalyTypeLabel(type) {
+  if (CATEGORY_LABELS[type]) return CATEGORY_LABELS[type];
+  // Anciennes anomalies enregistrées avant l'arbre à 2 niveaux : le "type"
+  // stocké correspond alors à ce qui est aujourd'hui une précision, ou à un
+  // tout ancien code — on l'affiche quand même en "Type anomalie" à défaut.
+  if (PRECISION_LABELS[type]) return PRECISION_LABELS[type];
+  if (OLD_CODES[type]) return OLD_CODES[type];
+  return type || '';
+}
+function anomalyComplementLabel(precision, commentaire) {
+  const precisionLabel = (precision && PRECISION_LABELS[precision]) ? PRECISION_LABELS[precision] : '';
+  if (commentaire) return precisionLabel ? `${precisionLabel} - ${commentaire}` : commentaire;
+  return precisionLabel;
+}
+
 // ─── GÉNÉRATION PDF ───────────────────────────────────────────────────────────
 function generateAnomaliesPDF(session, anomalies, withPhotos) {
   const d = new Date(session.end_time || session.start_time);
@@ -604,8 +621,8 @@ app.get('/api/export/excel', async (req, res) => {
         commune,                                          // D - Commune
         numeroCell,                                       // E - N° rue
         voie,                                             // F - Adresse
-        anomalyFullLabel(a.anomalie_type, a.anomalie_precision), // G - Type anomalie
-        a.commentaire || '',                              // H - Complément
+        anomalyTypeLabel(a.anomalie_type),                          // G - Type anomalie (niveau 1)
+        anomalyComplementLabel(a.anomalie_precision, a.commentaire), // H - Complément (niveau 2 + commentaire)
         collecteCode,                                      // I - Collecte (O/N)
         PRESTATAIRE,                                       // J - Prestataire
         a.type_tournee || '',                              // K - Sortie / Rentrée (bonus)
