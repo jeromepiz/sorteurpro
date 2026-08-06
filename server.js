@@ -58,6 +58,7 @@ async function initDB() {
     ALTER TABLE validations ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
     ALTER TABLE validations ADD COLUMN IF NOT EXISTS accuracy DOUBLE PRECISION;
     ALTER TABLE validations ADD COLUMN IF NOT EXISTS collecte_effectuee BOOLEAN;
+    ALTER TABLE validations ADD COLUMN IF NOT EXISTS anomalie_precision TEXT;
   `);
   console.log('✅ Base PostgreSQL initialisée');
 }
@@ -84,8 +85,11 @@ function readTournees() {
       }
     }
 
+    // Les adresses commencent à la ligne 4 (ligne 1 = titre, ligne 2 = commune,
+    // ligne 3 = en-têtes de colonnes). On ignore donc les 3 premières lignes
+    // pour ne pas lire la valeur de "Commune" (ex. "Villeurbanne") comme adresse.
     const addresses = [];
-    rows.forEach(row => {
+    rows.slice(3).forEach(row => {
       const adresse = row[1];
       if (!adresse || typeof adresse !== 'string' || adresse.trim() === '') return;
       if (adresse.toLowerCase().includes('adresse')) return;
@@ -96,9 +100,67 @@ function readTournees() {
         sub: [complement, nbBacs].filter(Boolean).join(' — ')
       });
     });
-    tournees[name] = { label: name, commune, addresses };
+
+    // Tableau N°SDA (colonnes H, I, J) : "Jour de la semaine" → "N°SDA".
+    // On scanne toutes les lignes plutôt que de figer H1:J6 en dur, pour
+    // rester robuste si le nombre de jours renseignés varie d'un onglet à l'autre.
+    const sdaParJour = {};
+    rows.forEach(row => {
+      const jour = row[8] ? String(row[8]).trim().toLowerCase() : '';
+      const sda = row[9] ? String(row[9]).trim() : '';
+      if (jour && sda && jour !== 'jour de la semaine') {
+        sdaParJour[jour] = sda;
+      }
+    });
+    tournees[name] = { label: name, commune, addresses, sdaParJour };
   });
   return tournees;
+}
+
+// ─── LIBELLÉS ANOMALIES (arbre à 2 niveaux + repli anciens formats) ──────────
+const CATEGORY_LABELS = {
+  sacs_vrac: 'Sacs, vrac à côté du bac',
+  service_incomplet: 'Pb de service complet',
+  tri_mal_trie: 'Bac de tri mal trié',
+  mauvais_contenu_gris: 'Mauvais contenu du bac gris',
+  bac_om_casse: 'Bac OM cassé',
+  bac_tri_casse: 'Bac Tri cassé',
+  pb_bac_autre: 'Pb de bac autre',
+  autre: 'Autre'
+};
+const PRECISION_LABELS = {
+  sacs:'Sacs', vrac:'Vrac', sacs_et_vrac:'Sacs et vrac', encombrants:'Encombrants',
+  volume_important:'Volume important', dechets_dangereux:'Déchets dangereux', sapin:'Sapin',
+  porte_fermee_non_sorti:'Porte fermée : bac non sorti', porte_fermee_non_rentre:'Porte fermée : bac non rentré',
+  absence_bloc_porte:'Absence de bloc-porte', absence_lumiere:'Absence de lumière',
+  local_encombre:'Local encombré', bac_inaccessible:'Bac inaccessible', absence_bacs:'Absence de bacs',
+  effectue_riverain:'Effectué par riverain', local_insalubre:'Local insalubre / nuisibles', squat:'Squat',
+  deja_scotche:'Déjà scotché', sacs_fermes:'Sacs fermés', verre:'Verre', bois_vegetaux:'Bois, végétaux',
+  textiles:'Textiles', dechets_alimentaires:'Déchets alimentaires', gravats:'Gravats',
+  dechets_animaux:"Déchets d'animaux", dechets_non_menagers:'Déchets non ménagers', dechets_verts:'Déchets verts',
+  cuve:'Cuve', couvercle:'Couvercle', roue:'Roue', roues:'Roues', collerette:'Collerette',
+  debordant:'Débordant', a_rentrer:'A rentrer', trop_lourd:'Trop lourd', tres_sale:'Très sale',
+  trop_tasse:'Trop tassé', non_identifie:'Non identifié', trop_bacs_surlitrage:'Trop de bacs (surlitrage)',
+  modele_hors_norme:'Modèle hors norme', bac_750l:'Bac de 750L', nuisibles:'Nuisibles',
+  panne:'Panne', accident:'Accident', altercation:'Altercation', agression:'Agression',
+  autre:'Autre'
+};
+// Très anciens codes (première version de l'appli, avant la liste à 10 items puis l'arbre à 2 niveaux)
+const OLD_CODES = {
+  bac_absent:'Bac non sorti (ancien)', acces_bloque:'Accès bloqué (ancien)',
+  bac_endommage:'Bac endommagé (ancien)', bac_plein:'Bac trop plein (ancien)',
+  mauvais_tri:'Mauvais tri (ancien)', bac_non_rentre:'Non rentré (ancien)',
+  adresse_absente:'Adresse introuvable (ancien)'
+};
+function anomalyFullLabel(type, precision) {
+  if (precision && PRECISION_LABELS[precision]) {
+    const catLabel = CATEGORY_LABELS[type] || type;
+    return `${catLabel} - ${PRECISION_LABELS[precision]}`;
+  }
+  if (CATEGORY_LABELS[type]) return CATEGORY_LABELS[type];
+  if (PRECISION_LABELS[type]) return PRECISION_LABELS[type];
+  if (OLD_CODES[type]) return OLD_CODES[type];
+  return type || '';
 }
 
 // ─── GÉNÉRATION PDF ───────────────────────────────────────────────────────────
@@ -126,7 +188,7 @@ function generateAnomaliesPDF(session, anomalies, withPhotos) {
         <div style="background:#fff8f8;border-left:4px solid #e53e3e;border-radius:6px;padding:14px;margin-bottom:14px;page-break-inside:avoid;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
             <span style="font-weight:700;font-size:15px;color:#1a1a2e;">📍 ${a.adresse}</span>
-            <span style="background:#e53e3e;color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;">⚠️ ${a.anomalie_type || 'Anomalie'}</span>
+            <span style="background:#e53e3e;color:#fff;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;">⚠️ ${anomalyFullLabel(a.anomalie_type, a.anomalie_precision)}</span>
           </div>
           <div style="color:#666;font-size:12px;margin-bottom:6px;">🕐 ${heure}${collecteHTML}</div>
           ${a.commentaire ? `<div style="background:#fff;border:1px solid #fecaca;border-radius:4px;padding:8px;font-size:13px;color:#444;">${a.commentaire}</div>` : ''}
@@ -197,7 +259,7 @@ app.get('/api/tournees', (req, res) => {
 // ─── API : VALIDATION ────────────────────────────────────────────────────────
 app.post('/api/validation', async (req, res) => {
   try {
-    const { sessionId, agent, tourneeId, typeTournee, adresse, anomalie, anomalieType, collecteEffectuee, commentaire, photo, timestamp, lat, lng, accuracy } = req.body;
+    const { sessionId, agent, tourneeId, typeTournee, adresse, anomalie, anomalieType, anomaliePrecision, collecteEffectuee, commentaire, photo, timestamp, lat, lng, accuracy } = req.body;
 
     // Upsert session — met aussi à jour la dernière position connue si le téléphone en a transmis une
     await pool.query(`
@@ -214,9 +276,9 @@ app.post('/api/validation', async (req, res) => {
 
     // Insérer validation (avec la position GPS capturée à ce moment, si disponible)
     await pool.query(`
-      INSERT INTO validations (session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type, commentaire, photo, timestamp, lat, lng, accuracy, collecte_effectuee)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-    `, [sessionId, agent, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaire || null, photo || null, timestamp, lat || null, lng || null, accuracy || null, typeof collecteEffectuee === 'boolean' ? collecteEffectuee : null]);
+      INSERT INTO validations (session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type, commentaire, photo, timestamp, lat, lng, accuracy, collecte_effectuee, anomalie_precision)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    `, [sessionId, agent, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaire || null, photo || null, timestamp, lat || null, lng || null, accuracy || null, typeof collecteEffectuee === 'boolean' ? collecteEffectuee : null, anomaliePrecision || null]);
 
     res.json({ ok: true });
   } catch (err) {
@@ -381,10 +443,6 @@ app.get('/api/dashboard', async (req, res) => {
 });
 
 // ─── API : VERSION DASHBOARD (léger, sans photos) ────────────────────────────
-// Utilisé pour le polling automatique : renvoie juste de quoi détecter un
-// changement (compteurs + dernier timestamp), sans transférer les données
-// complètes (ni les photos). Le dashboard ne re-télécharge /api/dashboard en
-// entier que si cette empreinte a changé depuis le dernier appel.
 app.get('/api/dashboard/version', async (req, res) => {
   try {
     const { date } = req.query;
@@ -453,34 +511,6 @@ function parseAdresse(adresse) {
   return { numero: '', voie: adresse.trim() };
 }
 
-// Libellés propres (sans emoji) pour l'export Excel — inclut les anciens codes
-// pour que les anomalies historiques restent lisibles dans l'export.
-const ANOMALY_LABELS_EXPORT = {
-  porte_fermee_non_sorti: 'Porte fermée : bac non sorti',
-  porte_fermee_non_rentre: 'Porte fermée : bac non rentré',
-  absence_bloc_porte: 'Absence de bloc-porte',
-  absence_lumiere: 'Absence de lumière',
-  local_encombre: 'Local encombré',
-  bac_inaccessible: 'Bac inaccessible',
-  absence_bacs: 'Absence de bacs',
-  effectue_riverain: 'Effectué par riverain',
-  local_insalubre: 'Local insalubre / nuisibles',
-  squat: 'Squat',
-  autre: 'Autre',
-  // Anciens codes (avant la mise à jour de la liste)
-  bac_absent: 'Bac non sorti', acces_bloque: 'Accès bloqué',
-  bac_endommage: 'Bac endommagé', bac_plein: 'Bac trop plein',
-  mauvais_tri: 'Mauvais tri', bac_non_rentre: 'Non rentré',
-  adresse_absente: 'Adresse introuvable'
-};
-function anomalyLabelExport(type) {
-  return ANOMALY_LABELS_EXPORT[type] || type || '';
-}
-
-// Prestataire assurant la collecte — à ajuster ici si besoin (pas encore
-// une donnée saisie ailleurs dans l'appli).
-const PRESTATAIRE_DEFAUT = 'Pizzorno';
-
 // ─── API : EXPORT EXCEL ANOMALIES ────────────────────────────────────────────
 app.get('/api/export/excel', async (req, res) => {
   try {
@@ -528,16 +558,17 @@ app.get('/api/export/excel', async (req, res) => {
     let tournees = {};
     try { tournees = readTournees(); } catch (e) { console.error('Erreur lecture communes:', e); }
 
+    // Prestataire assurant la collecte (fixe pour l'instant)
+    const PRESTATAIRE = 'Pizzorno';
+
     // ── Construction de la feuille (format calé sur Exemple_extraction.xlsx) ──
     const wb = XLSX.utils.book_new();
 
-    // En-têtes A→J identiques à l'exemple, + 2 colonnes bonus en fin de
-    // tableau (K, L) pour ne pas perdre la traçabilité agent / sortie-rentrée.
     const headers = [
       'Date',              // A
       'Heure',             // B
       'N° circuit',        // C
-      'Commune',           // D (vide pour l'instant, cf. remarque)
+      'Commune',           // D
       'N° rue',            // E
       'Adresse',           // F
       'Type anomalie',     // G
@@ -551,40 +582,49 @@ app.get('/api/export/excel', async (req, res) => {
     const rows = anomalies.map(a => {
       const ts = a.timestamp ? new Date(a.timestamp) : null;
       const { numero, voie } = parseAdresse(a.adresse);
-      // N° rue : nombre pur si possible (ex. "9"), sinon texte tel quel (ex. "9-10")
       const numeroCell = /^\d+$/.test(numero) ? Number(numero) : numero;
       const collecteCode = a.collecte_effectuee === true ? 'O' : a.collecte_effectuee === false ? 'N' : '';
       const commune = (tournees[a.tournee_id] && tournees[a.tournee_id].commune) || '';
+
+      // N° circuit : on part du N°SDA correspondant au jour de la semaine de
+      // l'anomalie (table H:J de l'onglet). Si aucune correspondance n'est
+      // trouvée (jour non renseigné dans le tableau, tournée inconnue, etc.),
+      // on retombe simplement sur le numéro de tournée brut.
+      let circuit = a.tournee_id || '';
+      const tInfo = tournees[a.tournee_id];
+      if (tInfo && tInfo.sdaParJour && ts) {
+        const jour = ts.toLocaleDateString('fr-FR', { weekday: 'long', timeZone: 'Europe/Paris' }).toLowerCase();
+        if (tInfo.sdaParJour[jour]) circuit = tInfo.sdaParJour[jour];
+      }
+
       return [
-        ts,                                   // A - Date (valeur date réelle)
-        ts,                                   // B - Heure (valeur heure réelle)
-        a.tournee_id || '',                   // C - N° circuit
-        commune,                              // D - Commune
-        numeroCell,                           // E - N° rue
-        voie,                                 // F - Adresse
-        anomalyLabelExport(a.anomalie_type),  // G - Type anomalie
-        a.commentaire || '',                  // H - Complément
-        collecteCode,                         // I - Collecte (O/N)
-        PRESTATAIRE_DEFAUT,                   // J - Prestataire
-        a.type_tournee || '',                 // K - Sortie / Rentrée (bonus)
-        a.agent || ''                         // L - Nom Prénom sorteur (bonus)
+        ts,                                              // A - Date
+        ts,                                              // B - Heure
+        circuit,                                          // C - N° circuit (N°SDA du jour, ou tournée brute à défaut)
+        commune,                                          // D - Commune
+        numeroCell,                                       // E - N° rue
+        voie,                                             // F - Adresse
+        anomalyFullLabel(a.anomalie_type, a.anomalie_precision), // G - Type anomalie
+        a.commentaire || '',                              // H - Complément
+        collecteCode,                                      // I - Collecte (O/N)
+        PRESTATAIRE,                                       // J - Prestataire
+        a.type_tournee || '',                              // K - Sortie / Rentrée (bonus)
+        a.agent || ''                                      // L - Nom Prénom sorteur (bonus)
       ];
     });
 
-    // Construire la feuille manuellement (header + données)
     const wsData = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(wsData, { cellDates: true });
 
     // Format des colonnes Date / Heure en valeurs Excel réelles (triables, filtrables)
     for (let r = 0; r < rows.length; r++) {
-      const rowNum = r + 2; // +1 pour l'en-tête, +1 car 1-indexé
+      const rowNum = r + 2;
       const dateCell = ws[`A${rowNum}`];
       const heureCell = ws[`B${rowNum}`];
       if (dateCell && dateCell.v) dateCell.z = 'dd/mm/yyyy';
       if (heureCell && heureCell.v) heureCell.z = 'hh:mm';
     }
 
-    // Largeurs de colonnes
     ws['!cols'] = [
       { wch: 12 }, // A Date
       { wch: 8  }, // B Heure
@@ -592,7 +632,7 @@ app.get('/api/export/excel', async (req, res) => {
       { wch: 16 }, // D Commune
       { wch: 8  }, // E N° rue
       { wch: 32 }, // F Adresse
-      { wch: 26 }, // G Type anomalie
+      { wch: 32 }, // G Type anomalie
       { wch: 30 }, // H Complément
       { wch: 10 }, // I Collecte
       { wch: 16 }, // J Prestataire
