@@ -425,20 +425,31 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 <div class="toast" id="toast"></div>
 
 <script>
-const ANOMALY_LABELS = {
-  // Types actifs (sélectionnables par les sorteurs)
-  porte_fermee_non_sorti:'🚪 Porte fermée : bac non sorti',
-  porte_fermee_non_rentre:'🚪 Porte fermée : bac non rentré',
-  absence_bloc_porte:'🔓 Absence de bloc-porte',
-  absence_lumiere:'💡 Absence de lumière',
-  local_encombre:'📦 Local encombré',
-  bac_inaccessible:'🚫 Bac inaccessible',
-  absence_bacs:'🗑️ Absence de bacs',
-  effectue_riverain:'🙋 Effectué par riverain',
-  local_insalubre:'🐀 Local insalubre / nuisibles',
-  squat:'🏚️ Squat',
-  autre:'📝 Autre',
-  // Anciens codes conservés pour l'affichage correct des anomalies historiques
+const CATEGORY_LABELS = {
+  sacs_vrac:'🛍️ Sacs, vrac à côté du bac', service_incomplet:'🚪 Pb de service complet',
+  tri_mal_trie:'♻️ Bac de tri mal trié', mauvais_contenu_gris:'🗑️ Mauvais contenu du bac gris',
+  bac_om_casse:'🔨 Bac OM cassé', bac_tri_casse:'🔨 Bac Tri cassé',
+  pb_bac_autre:'⚠️ Pb de bac autre', autre:'📝 Autre'
+};
+const PRECISION_LABELS = {
+  sacs:'Sacs', vrac:'Vrac', sacs_et_vrac:'Sacs et vrac', encombrants:'Encombrants',
+  volume_important:'Volume important', dechets_dangereux:'Déchets dangereux', sapin:'Sapin',
+  porte_fermee_non_sorti:'Porte fermée : bac non sorti', porte_fermee_non_rentre:'Porte fermée : bac non rentré',
+  absence_bloc_porte:'Absence de bloc-porte', absence_lumiere:'Absence de lumière',
+  local_encombre:'Local encombré', bac_inaccessible:'Bac inaccessible', absence_bacs:'Absence de bacs',
+  effectue_riverain:'Effectué par riverain', local_insalubre:'Local insalubre / nuisibles', squat:'Squat',
+  deja_scotche:'Déjà scotché', sacs_fermes:'Sacs fermés', verre:'Verre', bois_vegetaux:'Bois, végétaux',
+  textiles:'Textiles', dechets_alimentaires:'Déchets alimentaires', gravats:'Gravats',
+  dechets_animaux:"Déchets d'animaux", dechets_non_menagers:'Déchets non ménagers', dechets_verts:'Déchets verts',
+  cuve:'Cuve', couvercle:'Couvercle', roue:'Roue', roues:'Roues', collerette:'Collerette',
+  debordant:'Débordant', a_rentrer:'A rentrer', trop_lourd:'Trop lourd', tres_sale:'Très sale',
+  trop_tasse:'Trop tassé', non_identifie:'Non identifié', trop_bacs_surlitrage:'Trop de bacs (surlitrage)',
+  modele_hors_norme:'Modèle hors norme', bac_750l:'Bac de 750L', nuisibles:'Nuisibles',
+  panne:'Panne', accident:'Accident', altercation:'Altercation', agression:'Agression',
+  autre:'Autre'
+};
+// Anciens codes (avant l'arbre à 2 niveaux), conservés pour l'affichage de l'historique
+const OLD_CODES = {
   bac_absent:'🗑️ Bac non sorti (ancien)', acces_bloque:'🚧 Accès bloqué (ancien)',
   bac_endommage:'🔨 Bac endommagé (ancien)', bac_plein:'🔴 Bac trop plein (ancien)',
   mauvais_tri:'♻️ Mauvais tri (ancien)', bac_non_rentre:'↩️ Non rentré (ancien)',
@@ -460,7 +471,16 @@ function fmt(iso)     { if(!iso) return '—'; return new Date(iso).toLocaleTime
 function fmtDate(iso) { if(!iso) return '—'; return new Date(iso).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
 function fmtDuree(ms) { if(!ms) return '—'; const m=Math.floor(ms/60000),h=Math.floor(m/60); return h>0?`${h}h ${m%60}min`:`${m} min`; }
 function initials(n)  { return n.split(' ').map(p=>p[0]).join('').toUpperCase().slice(0,2); }
-function anomLabel(id){ return ANOMALY_LABELS[id]||'⚠️ Anomalie'; }
+function anomLabel(type, precision){
+  if (precision && PRECISION_LABELS[precision]) {
+    const catLabel = (CATEGORY_LABELS[type] || type || '').replace(/^\S+\s/, '');
+    return `⚠️ ${catLabel} — ${PRECISION_LABELS[precision]}`;
+  }
+  if (CATEGORY_LABELS[type]) return CATEGORY_LABELS[type];
+  if (PRECISION_LABELS[type]) return '⚠️ ' + PRECISION_LABELS[type];
+  if (OLD_CODES[type]) return OLD_CODES[type];
+  return '⚠️ Anomalie';
+}
 function showToast(msg,color){ const t=document.getElementById('toast'); t.textContent=msg; t.style.background=color||''; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
 function typeBadge(type) {
   if (!type) return '';
@@ -476,9 +496,6 @@ function versionKeyFrom(v) {
   return `${v.session_count}-${v.validation_count}-${v.anomaly_count}-${v.last_validation}-${v.last_end}`;
 }
 
-// Chargement complet (sessions + anomalies + photos). Toujours utilisé au
-// premier affichage, sur clic "Actualiser", ou quand checkForUpdates détecte
-// un vrai changement.
 async function loadDashboard() {
   const date = document.getElementById('filter-date').value;
   try {
@@ -489,18 +506,13 @@ async function loadDashboard() {
     renderAnomalies(dashData.anomalies);
     renderHistorique(dashData.sessions);
 
-    // Mémorise l'empreinte courante pour que le prochain check léger
-    // ne redéclenche pas un rechargement complet inutilement.
     const v = await (await fetch('/api/dashboard/version'+(date?`?date=${date}`:''))).json();
     lastVersionKey = versionKeyFrom(v);
   } catch(e) { console.error(e); }
 
-  // Charge aussi les rapports PDF
   loadPdfReports();
 }
 
-// Vérification légère (aucune photo transférée) : ne recharge les données
-// complètes que si quelque chose a réellement changé depuis le dernier appel.
 async function checkForUpdates() {
   const date = document.getElementById('filter-date').value;
   try {
@@ -640,7 +652,7 @@ function renderAnomalies(anomalies) {
       <div style="font-size:20px;flex-shrink:0;margin-top:1px;">⚠️</div>
       <div class="anomalie-info">
         <div class="anomalie-adresse">${a.adresse||'—'}</div>
-        <div class="anomalie-meta">${a.agent} · ${a.tournee_id} ${typeBadge(a.type_tournee)} · <strong>${anomLabel(a.anomalie_type)}</strong> ${collecteBadge(a)}</div>
+        <div class="anomalie-meta">${a.agent} · ${a.tournee_id} ${typeBadge(a.type_tournee)} · <strong>${anomLabel(a.anomalie_type, a.anomalie_precision)}</strong> ${collecteBadge(a)}</div>
         ${a.commentaire?`<div class="anomalie-comment">💬 ${a.commentaire}</div>`:''}
         ${a.photo?`<img class="anomalie-photo" src="${a.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
       </div>
@@ -724,7 +736,7 @@ function openModal(session, validations) {
         <div class="addr-item-info">
           <div class="addr-item-name">${v.adresse}</div>
           <div class="addr-item-time">⏱ ${fmt(v.timestamp)}</div>
-          ${isAnom?`<div class="addr-item-anomaly">${anomLabel(v.anomalie_type)}${v.collecte_effectuee===true?' · Collecte Oui':v.collecte_effectuee===false?' · Collecte Non':''}${v.commentaire?' — '+v.commentaire:''}</div>`:''}
+          ${isAnom?`<div class="addr-item-anomaly">${anomLabel(v.anomalie_type, v.anomalie_precision)}${v.collecte_effectuee===true?' · Collecte Oui':v.collecte_effectuee===false?' · Collecte Non':''}${v.commentaire?' — '+v.commentaire:''}</div>`:''}
           ${isAnom&&v.photo?`<img class="addr-item-photo" src="${v.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
         </div>
         <div class="addr-item-status">${isAnom?`<span class="badge badge-anomalie">⚠️</span>`:`<span class="badge badge-terminee">✅ OK</span>`}</div>`;
@@ -847,7 +859,7 @@ async function showRouteMap(sessionId) {
     L.marker([p.lat, p.lng], { icon })
       .bindPopup(`
         <div class="route-popup-title">${i + 1}. ${p.adresse || ''}</div>
-        <div class="route-popup-time">🕐 ${heure}${p.anomalie ? ' · ⚠️ ' + anomLabel(p.anomalie_type) : ''}</div>
+        <div class="route-popup-time">🕐 ${heure}${p.anomalie ? ' · ' + anomLabel(p.anomalie_type, p.anomalie_precision) : ''}</div>
       `)
       .addTo(routeMapLayer);
   });
@@ -973,7 +985,7 @@ function buildAndPrintPdf(selected) {
             <div class="pdf-addr-info" style="flex:1;">
               <div class="pdf-addr-name">${v.adresse}</div>
               <div class="pdf-addr-time">⏱ ${fmt(v.timestamp)}</div>
-              ${isAnom?`<div class="pdf-addr-anomaly">${anomLabel(v.anomalie_type)}${v.collecte_effectuee===true?' · Collecte Oui':v.collecte_effectuee===false?' · Collecte Non':''}</div>`:''}
+              ${isAnom?`<div class="pdf-addr-anomaly">${anomLabel(v.anomalie_type, v.anomalie_precision)}${v.collecte_effectuee===true?' · Collecte Oui':v.collecte_effectuee===false?' · Collecte Non':''}</div>`:''}
               ${isAnom&&v.commentaire?`<div class="pdf-addr-comment">💬 ${v.commentaire}</div>`:''}
               ${photoHtml}
             </div>
