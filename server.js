@@ -278,6 +278,12 @@ app.post('/api/validation', async (req, res) => {
   try {
     const { sessionId, agent, tourneeId, typeTournee, adresse, anomalie, anomalieType, anomaliePrecision, collecteEffectuee, commentaire, photo, timestamp, lat, lng, accuracy } = req.body;
 
+    // Sécurité côté serveur : on retronque à 60 caractères même si le champ
+    // libre du navigateur a déjà cette limite (ex. ancienne version de l'app
+    // en cache, ou appel direct à l'API).
+    const agentSafe = agent ? String(agent).slice(0, 60) : agent;
+    const commentaireSafe = commentaire ? String(commentaire).slice(0, 60) : commentaire;
+
     // Upsert session — met aussi à jour la dernière position connue si le téléphone en a transmis une
     await pool.query(`
       INSERT INTO sessions (id, agent, tournee_id, type_tournee, start_time, loc_lat, loc_lng, loc_accuracy, loc_captured_at)
@@ -289,13 +295,13 @@ app.post('/api/validation', async (req, res) => {
         loc_lng = COALESCE(EXCLUDED.loc_lng, sessions.loc_lng),
         loc_accuracy = COALESCE(EXCLUDED.loc_accuracy, sessions.loc_accuracy),
         loc_captured_at = CASE WHEN EXCLUDED.loc_lat IS NOT NULL THEN NOW() ELSE sessions.loc_captured_at END
-    `, [sessionId, agent, tourneeId, typeTournee, timestamp, lat || null, lng || null, accuracy || null]);
+    `, [sessionId, agentSafe, tourneeId, typeTournee, timestamp, lat || null, lng || null, accuracy || null]);
 
     // Insérer validation (avec la position GPS capturée à ce moment, si disponible)
     await pool.query(`
       INSERT INTO validations (session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type, commentaire, photo, timestamp, lat, lng, accuracy, collecte_effectuee, anomalie_precision)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-    `, [sessionId, agent, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaire || null, photo || null, timestamp, lat || null, lng || null, accuracy || null, typeof collecteEffectuee === 'boolean' ? collecteEffectuee : null, anomaliePrecision || null]);
+    `, [sessionId, agentSafe, tourneeId, typeTournee, adresse, anomalie || false, anomalieType || null, commentaireSafe || null, photo || null, timestamp, lat || null, lng || null, accuracy || null, typeof collecteEffectuee === 'boolean' ? collecteEffectuee : null, anomaliePrecision || null]);
 
     res.json({ ok: true });
   } catch (err) {
