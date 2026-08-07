@@ -207,9 +207,9 @@
       </div>
 
       <label>Prénom</label>
-      <input type="text" id="inp-prenom" placeholder="Ex : Jean" autocomplete="given-name" maxlength="60">
+      <input type="text" id="inp-prenom" placeholder="Ex : Jean" autocomplete="given-name" maxlength="60" oninput="enforceMaxLength(this)">
       <label>Nom</label>
-      <input type="text" id="inp-nom" placeholder="Ex : Dupont" autocomplete="family-name" maxlength="60">
+      <input type="text" id="inp-nom" placeholder="Ex : Dupont" autocomplete="family-name" maxlength="60" oninput="enforceMaxLength(this)">
       <label>Numéro de tournée</label>
       <select id="sel-tournee"><option value="">— Chargement… —</option></select>
 
@@ -828,9 +828,15 @@ function resetCollecte() {
   document.querySelectorAll('#collecte-chips .chip').forEach(c => c.classList.remove('selected'));
 }
 
+function enforceMaxLength(el, max) {
+  max = max || 60;
+  if (el.value.length > max) el.value = el.value.slice(0, max);
+}
+
 function updateCommentCounter() {
   const el = document.getElementById('anomaly-text');
   const counter = document.getElementById('comment-counter');
+  enforceMaxLength(el, 60);
   if (el && counter) counter.textContent = `${el.value.length} / 60`;
 }
 
