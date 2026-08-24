@@ -427,7 +427,10 @@ app.get('/api/dashboard', async (req, res) => {
     `, [targetDate]);
 
     const anomaliesRes = await pool.query(`
-      SELECT v.* FROM validations v
+      SELECT v.id, v.session_id, v.agent, v.tournee_id, v.type_tournee, v.adresse, v.anomalie,
+             v.anomalie_type, v.anomalie_precision, v.commentaire, v.timestamp, v.lat, v.lng,
+             v.accuracy, v.collecte_effectuee, (v.photo IS NOT NULL) as has_photo
+      FROM validations v
       JOIN sessions s ON s.id = v.session_id
       WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1 AND v.anomalie = true
       ORDER BY v.timestamp DESC
@@ -506,10 +509,41 @@ app.get('/api/history', async (req, res) => {
 });
 
 // ─── API : DÉTAIL SESSION ────────────────────────────────────────────────────
+// ─── API : PHOTO INDIVIDUELLE (avec cache navigateur) ────────────────────────
+// Sert la photo d'une validation à part, plutôt que de l'embarquer en base64
+// dans /api/dashboard ou /api/session/:id. Comme une photo donnée ne change
+// jamais une fois enregistrée, on peut la mettre en cache très longtemps côté
+// navigateur : elle n'est alors téléchargée qu'une seule fois, même si le
+// dashboard se recharge plusieurs fois dans la journée.
+app.get('/api/photo/:id', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT photo FROM validations WHERE id = $1', [req.params.id]);
+    const dataUrl = r.rows[0] && r.rows[0].photo;
+    if (!dataUrl) return res.status(404).send('Photo introuvable');
+
+    const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+    if (!match) return res.status(404).send('Format photo invalide');
+
+    const contentType = match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/session/:sessionId', async (req, res) => {
   try {
     const sRes = await pool.query(`SELECT * FROM sessions WHERE id = $1`, [req.params.sessionId]);
-    const vRes = await pool.query(`SELECT * FROM validations WHERE session_id = $1 ORDER BY timestamp ASC`, [req.params.sessionId]);
+    const vRes = await pool.query(`
+      SELECT id, session_id, agent, tournee_id, type_tournee, adresse, anomalie, anomalie_type,
+             anomalie_precision, commentaire, timestamp, lat, lng, accuracy, collecte_effectuee,
+             (photo IS NOT NULL) as has_photo
+      FROM validations WHERE session_id = $1 ORDER BY timestamp ASC
+    `, [req.params.sessionId]);
     if (!sRes.rows[0]) return res.status(404).json({ error: 'Non trouvée' });
 
     let tournees = {};
