@@ -257,7 +257,7 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
     <div class="live-dot"></div>
-    <span style="font-size:12px;color:rgba(255,255,255,0.8);">Actualisation auto · vérif. 45s</span>
+    <span style="font-size:12px;color:rgba(255,255,255,0.8);">Actualisation auto · vérif. 45s (si onglet actif)</span>
   </div>
 </div>
 
@@ -654,7 +654,7 @@ function renderAnomalies(anomalies) {
         <div class="anomalie-adresse">${a.adresse||'—'}</div>
         <div class="anomalie-meta">${a.agent} · ${a.tournee_id} ${typeBadge(a.type_tournee)} · <strong>${anomLabel(a.anomalie_type, a.anomalie_precision)}</strong> ${collecteBadge(a)}</div>
         ${a.commentaire?`<div class="anomalie-comment">💬 ${a.commentaire}</div>`:''}
-        ${a.photo?`<img class="anomalie-photo" src="${a.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
+        ${a.has_photo?`<img class="anomalie-photo" src="/api/photo/${a.id}" alt="Photo" loading="lazy" onclick="openLightbox(this.src)">`:''}
       </div>
       <div class="anomalie-time">${fmt(a.timestamp)}</div>
     </div>`).join('');
@@ -737,7 +737,7 @@ function openModal(session, validations) {
           <div class="addr-item-name">${v.adresse}</div>
           <div class="addr-item-time">⏱ ${fmt(v.timestamp)}</div>
           ${isAnom?`<div class="addr-item-anomaly">${anomLabel(v.anomalie_type, v.anomalie_precision)}${v.collecte_effectuee===true?' · Collecte Oui':v.collecte_effectuee===false?' · Collecte Non':''}${v.commentaire?' — '+v.commentaire:''}</div>`:''}
-          ${isAnom&&v.photo?`<img class="addr-item-photo" src="${v.photo}" alt="Photo" onclick="openLightbox(this.src)">`:''}
+          ${isAnom&&v.has_photo?`<img class="addr-item-photo" src="/api/photo/${v.id}" alt="Photo" loading="lazy" onclick="openLightbox(this.src)">`:''}
         </div>
         <div class="addr-item-status">${isAnom?`<span class="badge badge-anomalie">⚠️</span>`:`<span class="badge badge-terminee">✅ OK</span>`}</div>`;
       tl.appendChild(item);
@@ -978,7 +978,7 @@ function buildAndPrintPdf(selected) {
       page.innerHTML += `<div class="pdf-section-title">${includeOk?'Détail des adresses':'Anomalies uniquement'}</div>`;
       filtered.forEach(v => {
         const isAnom    = v.anomalie;
-        const photoHtml = includePhotos&&isAnom&&v.photo?`<img class="pdf-photo" src="${v.photo}" alt="Photo anomalie">`:'';
+        const photoHtml = includePhotos&&isAnom&&v.has_photo?`<img class="pdf-photo" src="/api/photo/${v.id}" alt="Photo anomalie">`:'';
         page.innerHTML += `
           <div class="pdf-addr-row">
             <div class="pdf-addr-num ${isAnom?'ko':'ok'}">${isAnom?'⚠':'✓'}</div>
@@ -1073,7 +1073,27 @@ document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeModalDire
 // ─── INIT ───
 document.getElementById('filter-date').value = new Date().toISOString().split('T')[0];
 loadDashboard();
-setInterval(checkForUpdates, 45000);
+// Le polling ne tourne que quand l'onglet est réellement visible. Onglet en
+// arrière-plan / écran verrouillé = polling coupé, ce qui laisse Neon mettre
+// sa base en veille (autosuspend) au lieu de la garder active en continu et
+// de consommer inutilement le quota d'heures de calcul (CU-hours).
+let pollTimer = null;
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(checkForUpdates, 45000);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopPolling();
+  } else {
+    checkForUpdates(); // rattrape immédiatement ce qui a pu changer pendant l'absence
+    startPolling();
+  }
+});
+if (!document.hidden) startPolling();
 </script>
 </body>
 </html>
