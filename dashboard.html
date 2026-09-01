@@ -37,6 +37,7 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
 .btn-orange { background: #e65100; color: white; }
 .btn-gray { background: var(--gray-bg); color: var(--text); border: 1px solid var(--gray-border); }
 .btn-blue { background: var(--blue); color: white; }
+.btn-red { background: #c0392b; color: white; }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 .ml-auto { margin-left: auto; }
 
@@ -268,6 +269,7 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
   <div class="ml-auto" style="display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-green" onclick="openExcelModal()">📥 Export Excel</button>
     <button class="btn btn-orange" onclick="openPdfModal()">📄 Export PDF tournée</button>
+    <button class="btn btn-red" onclick="openPurgeModal()">🗑️ Purge mensuelle</button>
   </div>
 </div>
 
@@ -391,6 +393,27 @@ html, body { background: var(--gray-light); font-family: -apple-system, BlinkMac
     <div class="pdf-modal-footer">
       <button class="btn btn-gray" onclick="closePdfModalDirect()">Annuler</button>
       <button class="btn btn-orange" onclick="generatePdf()">📄 Générer le PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL PURGE MENSUELLE ══ -->
+<div class="pdf-modal-overlay" id="purge-modal-overlay" onclick="closePurgeModal(event)">
+  <div class="pdf-modal">
+    <div class="pdf-modal-header" style="background:#c0392b;">
+      <h2>🗑️ Purge mensuelle</h2>
+      <button onclick="closePurgeModalDirect()" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div class="pdf-modal-body">
+      <p id="purge-period" style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">Chargement…</p>
+      <div class="modal-stats" id="purge-stats" style="border:1px solid var(--gray-border);border-radius:var(--radius);overflow:hidden;"></div>
+      <p style="font-size:12px;color:var(--red);background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--radius);padding:10px 12px;margin-top:14px;">
+        ⚠️ Cette action est <strong>irréversible</strong>. Vérifie que les exports Excel/PDF de cette période ont bien été téléchargés avant de continuer.
+      </p>
+    </div>
+    <div class="pdf-modal-footer">
+      <button class="btn btn-gray" onclick="closePurgeModalDirect()">Annuler</button>
+      <button class="btn btn-red" id="purge-confirm-btn" onclick="confirmPurge()" disabled>🗑️ Confirmer la suppression</button>
     </div>
   </div>
 </div>
@@ -1068,7 +1091,64 @@ function generateExcel() {
 // Ancienne fonction conservée pour compatibilité (non utilisée)
 function exportExcel() { openExcelModal(); }
 
-document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeModalDirect(); closePdfModalDirect(); closeExcelModalDirect(); } });
+// ─── PURGE MENSUELLE ───
+let purgePreviewData = null;
+
+function openPurgeModal() {
+  document.getElementById('purge-modal-overlay').classList.add('open');
+  document.getElementById('purge-period').textContent = 'Chargement des données à supprimer…';
+  document.getElementById('purge-stats').innerHTML = '';
+  const btn = document.getElementById('purge-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = '🗑️ Confirmer la suppression';
+  purgePreviewData = null;
+
+  fetch('/api/purge/preview')
+    .then(r => r.json())
+    .then(data => {
+      purgePreviewData = data;
+      document.getElementById('purge-period').innerHTML =
+        `Période concernée (mois précédent) : <strong>${fmtDate(data.periode.debut)} → ${fmtDate(data.periode.fin)}</strong>`;
+      document.getElementById('purge-stats').innerHTML = `
+        <div class="modal-stat"><div class="modal-stat-val" style="color:var(--blue);">${data.nb_sessions}</div><div class="modal-stat-lbl">Tournées</div></div>
+        <div class="modal-stat"><div class="modal-stat-val" style="color:var(--blue);">${data.nb_validations}</div><div class="modal-stat-lbl">Validations</div></div>
+        <div class="modal-stat"><div class="modal-stat-val" style="color:var(--orange);">${data.nb_pdf_exports}</div><div class="modal-stat-lbl">Rapports PDF</div></div>
+        <div class="modal-stat"><div class="modal-stat-val" style="color:#c0392b;">${data.taille_estimee_mo} Mo</div><div class="modal-stat-lbl">Volume estimé</div></div>`;
+      const rienASupprimer = data.nb_sessions === 0 && data.nb_pdf_exports === 0;
+      document.getElementById('purge-confirm-btn').disabled = rienASupprimer;
+      if (rienASupprimer) document.getElementById('purge-period').innerHTML += '<br><em>Aucune donnée à supprimer pour cette période.</em>';
+    })
+    .catch(() => { document.getElementById('purge-period').textContent = 'Erreur de chargement des données à purger.'; });
+}
+
+function closePurgeModal(e) { if (e.target === document.getElementById('purge-modal-overlay')) closePurgeModalDirect(); }
+function closePurgeModalDirect() { document.getElementById('purge-modal-overlay').classList.remove('open'); }
+
+function confirmPurge() {
+  const d = purgePreviewData;
+  if (!d) return;
+  const msg = `Supprimer définitivement ${d.nb_sessions} tournée(s), ${d.nb_validations} validation(s) et ${d.nb_pdf_exports} rapport(s) PDF (≈${d.taille_estimee_mo} Mo) du ${fmtDate(d.periode.debut)} au ${fmtDate(d.periode.fin)} ?\n\nCette action est IRRÉVERSIBLE.`;
+  if (!confirm(msg)) return;
+
+  const btn = document.getElementById('purge-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Suppression en cours…';
+
+  fetch('/api/purge/execute', { method: 'POST' })
+    .then(r => r.json())
+    .then(res => {
+      closePurgeModalDirect();
+      showToast(`🗑️ Purge terminée : ${res.sessions_supprimees} tournée(s) et ${res.pdf_exports_supprimes} rapport(s) PDF supprimés`, '#c0392b');
+      loadDashboard();
+    })
+    .catch(() => {
+      showToast('Erreur lors de la purge', '#c0392b');
+      btn.disabled = false;
+      btn.textContent = '🗑️ Confirmer la suppression';
+    });
+}
+
+document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeModalDirect(); closePdfModalDirect(); closeExcelModalDirect(); closePurgeModalDirect(); } });
 
 // ─── INIT ───
 document.getElementById('filter-date').value = new Date().toISOString().split('T')[0];
