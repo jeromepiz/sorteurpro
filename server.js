@@ -727,6 +727,110 @@ app.get('/api/location/status/:sessionId', async (req, res) => {
   }
 });
 
+// ─── API : PURGE MENSUELLE ────────────────────────────────────────────────────
+// Supprime les données du mois calendaire précédent la date de l'action.
+// Ex : le 01/09/2026, purge du 01/08/2026 au 31/08/2026 inclus.
+function getPrevMonthRange() {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1));
+  const end   = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)); // exclusif = 1er du mois en cours
+  return { start, end };
+}
+
+app.get('/api/purge/preview', async (req, res) => {
+  try {
+    const { start, end } = getPrevMonthRange();
+
+    const sessionsCount = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM sessions WHERE start_time >= $1 AND start_time < $2`,
+      [start, end]
+    );
+    const validationsCount = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM validations v
+       JOIN sessions s ON s.id = v.session_id
+       WHERE s.start_time >= $1 AND s.start_time < $2`,
+      [start, end]
+    );
+    const photosSize = await pool.query(
+      `SELECT COALESCE(SUM(octet_length(v.photo)),0)::bigint AS octets FROM validations v
+       JOIN sessions s ON s.id = v.session_id
+       WHERE s.start_time >= $1 AND s.start_time < $2 AND v.photo IS NOT NULL`,
+      [start, end]
+    );
+    const pdfInfo = await pool.query(
+      `SELECT COUNT(*)::int AS n, COALESCE(SUM(octet_length(pdf_data)),0)::bigint AS octets
+       FROM pdf_exports
+       WHERE (date_tournee IS NOT NULL AND date_tournee >= $1::date AND date_tournee < $2::date)
+          OR (date_tournee IS NULL AND created_at >= $1 AND created_at < $2)`,
+      [start, end]
+    );
+
+    const totalOctets = Number(photosSize.rows[0].octets) + Number(pdfInfo.rows[0].octets);
+
+    res.json({
+      periode: {
+        debut: start.toISOString().slice(0, 10),
+        fin: new Date(end.getTime() - 86400000).toISOString().slice(0, 10)
+      },
+      nb_sessions: sessionsCount.rows[0].n,
+      nb_validations: validationsCount.rows[0].n,
+      nb_pdf_exports: pdfInfo.rows[0].n,
+      taille_estimee_mo: (totalOctets / (1024 * 1024)).toFixed(2)
+    });
+  } catch (err) {
+    console.error('Erreur preview purge:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/purge/execute', async (req, res) => {
+  try {
+    const { start, end } = getPrevMonthRange();
+
+    // Les validations sont supprimées en cascade via ON DELETE CASCADE sur sessions
+    const delSessions = await pool.query(
+      `DELETE FROM sessions WHERE start_time >= $1 AND start_time < $2`,
+      [start, end]
+    );
+    const delPdf = await pool.query(
+      `DELETE FROM pdf_exports
+       WHERE (date_tournee IS NOT NULL AND date_tournee >= $1::date AND date_tournee < $2::date)
+          OR (date_tournee IS NULL AND created_at >= $1 AND created_at < $2)`,
+      [start, end]
+    );
+
+    console.log(`🗑️ Purge mensuelle exécutée : ${delSessions.rowCount} sessions, ${delPdf.rowCount} pdf_exports supprimés`);
+
+    res.json({
+      success: true,
+      sessions_supprimees: delSessions.rowCount,
+      pdf_exports_supprimes: delPdf.rowCount
+    });
+  } catch (err) {
+    console.error('Erreur purge:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : DEBUG TAILLE BDD (temporaire — à retirer une fois consulté) ───────
+app.get('/api/debug/db-size', async (req, res) => {
+  try {
+    const total = await pool.query(`SELECT pg_size_pretty(pg_database_size(current_database())) AS taille_totale`);
+    const parTable = await pool.query(`
+      SELECT relname AS table_name,
+             pg_size_pretty(pg_total_relation_size(relid)) AS taille
+      FROM pg_catalog.pg_statio_user_tables
+      ORDER BY pg_total_relation_size(relid) DESC
+    `);
+    res.json({
+      taille_totale: total.rows[0].taille_totale,
+      par_table: parTable.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API : DEBUG ─────────────────────────────────────────────────────────────
 app.get('/api/debug', (req, res) => {
   try {
