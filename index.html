@@ -335,6 +335,16 @@
 //  CONSTANTES
 // ═══════════════════════════════════════════
 const ANOMALY_TREE = [
+  { id:"sacs_vrac_sans_bac", label:"🧺 Sacs, vrac sans bac", options:[
+    {id:"sacs", label:"Sacs"},
+    {id:"vrac", label:"Vrac"},
+    {id:"sacs_et_vrac", label:"Sacs et vrac"},
+    {id:"encombrants", label:"Encombrants"},
+    {id:"volume_important", label:"Volume important"},
+    {id:"dechets_dangereux", label:"Déchets dangereux"},
+    {id:"sapin", label:"Sapin"},
+    {id:"autre", label:"Autre"},
+  ]},
   { id:"sacs_vrac", label:"🛍️ Sacs, vrac à côté du bac", options:[
     {id:"sacs", label:"Sacs"},
     {id:"vrac", label:"Vrac"},
@@ -345,7 +355,7 @@ const ANOMALY_TREE = [
     {id:"sapin", label:"Sapin"},
     {id:"autre", label:"Autre"},
   ]},
-  { id:"service_incomplet", label:"🚪 Pb de service complet", options:[
+  { id:"service_incomplet", label:"🚪 Pb de service complet (préciser)", options:[
     {id:"porte_fermee_non_sorti", label:"Porte fermée : bac non sorti"},
     {id:"porte_fermee_non_rentre", label:"Porte fermée : bac non rentré"},
     {id:"absence_bloc_porte", label:"Absence de bloc-porte"},
@@ -372,7 +382,7 @@ const ANOMALY_TREE = [
     {id:"dechets_dangereux", label:"Déchets dangereux"},
     {id:"autre", label:"Autre"},
   ]},
-  { id:"mauvais_contenu_gris", label:"🗑️ Mauvais contenu du bac gris", options:[
+  { id:"mauvais_contenu_gris", label:"🗑️ Mauvais contenu du bac gris (préciser)", options:[
     {id:"verre", label:"Verre"},
     {id:"dechets_alimentaires", label:"Déchets alimentaires"},
     {id:"dechets_verts", label:"Déchets verts"},
@@ -383,21 +393,21 @@ const ANOMALY_TREE = [
     {id:"dechets_dangereux", label:"Déchets dangereux"},
     {id:"autre", label:"Autre"},
   ]},
-  { id:"bac_om_casse", label:"🔨 Bac OM cassé", options:[
+  { id:"bac_om_casse", label:"🔨 Bac OM cassé (préciser)", options:[
     {id:"cuve", label:"Cuve"},
     {id:"couvercle", label:"Couvercle"},
     {id:"roue", label:"Roue"},
     {id:"collerette", label:"Collerette"},
     {id:"autre", label:"Autre"},
   ]},
-  { id:"bac_tri_casse", label:"🔨 Bac Tri cassé", options:[
+  { id:"bac_tri_casse", label:"🔨 Bac Tri cassé (préciser)", options:[
     {id:"cuve", label:"Cuve"},
     {id:"couvercle", label:"Couvercle"},
     {id:"roues", label:"Roues"},
     {id:"collerette", label:"Collerette"},
     {id:"autre", label:"Autre"},
   ]},
-  { id:"pb_bac_autre", label:"⚠️ Pb de bac autre", options:[
+  { id:"pb_bac_autre", label:"⚠️ Pb de bac autre (préciser)", options:[
     {id:"debordant", label:"Débordant"},
     {id:"a_rentrer", label:"A rentrer"},
     {id:"trop_lourd", label:"Trop lourd"},
@@ -410,7 +420,7 @@ const ANOMALY_TREE = [
     {id:"nuisibles", label:"Nuisibles"},
     {id:"autre", label:"Autre"},
   ]},
-  { id:"autre", label:"📝 Autre", options:[
+  { id:"autre", label:"📝 Autre (préciser)", options:[
     {id:"panne", label:"Panne"},
     {id:"accident", label:"Accident"},
     {id:"altercation", label:"Altercation"},
