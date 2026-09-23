@@ -119,14 +119,15 @@ function readTournees() {
 
 // ─── LIBELLÉS ANOMALIES (arbre à 2 niveaux + repli anciens formats) ──────────
 const CATEGORY_LABELS = {
+  sacs_vrac_sans_bac: 'Sacs, vrac sans bac',
   sacs_vrac: 'Sacs, vrac à côté du bac',
-  service_incomplet: 'Pb de service complet',
+  service_incomplet: 'Pb de service complet (préciser)',
   tri_mal_trie: 'Bac de tri mal trié',
-  mauvais_contenu_gris: 'Mauvais contenu du bac gris',
-  bac_om_casse: 'Bac OM cassé',
-  bac_tri_casse: 'Bac Tri cassé',
-  pb_bac_autre: 'Pb de bac autre',
-  autre: 'Autre'
+  mauvais_contenu_gris: 'Mauvais contenu du bac gris (préciser)',
+  bac_om_casse: 'Bac OM cassé (préciser)',
+  bac_tri_casse: 'Bac Tri cassé (préciser)',
+  pb_bac_autre: 'Pb de bac autre (préciser)',
+  autre: 'Autre (préciser)'
 };
 const PRECISION_LABELS = {
   sacs:'Sacs', vrac:'Vrac', sacs_et_vrac:'Sacs et vrac', encombrants:'Encombrants',
