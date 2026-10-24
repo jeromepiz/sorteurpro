@@ -342,12 +342,16 @@ app.post('/api/fin-tournee', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [sessionId, session.tournee_id, session.type_tournee, d.toISOString().split('T')[0], pdfHTML, filename]);
 
+    // Le rapport est renvoyé directement dans la réponse : l'app le télécharge
+    // sans rappeler /api/export/anomalies-pdf, ce qui évitait de relire toutes
+    // les photos de la tournée une deuxième fois dans la base.
     res.json({
       ok: true,
       anomaliesCount: anomalies.length,
       pdfGenerated: true,
       folder,
-      filename
+      filename,
+      html: anomalies.length > 0 ? pdfHTML : null
     });
   } catch (err) {
     console.error('Erreur fin-tournee:', err);
@@ -365,8 +369,12 @@ app.get('/api/export/anomalies-pdf/:sessionId', async (req, res) => {
     const session = sessionRes.rows[0];
     if (!session) return res.status(404).json({ error: 'Session non trouvée' });
 
+    // Sans photos : on ne lit pas la colonne photo (c'est elle qui pèse lourd
+    // dans le transfert réseau de la base).
+    const colonnes = withPhotos ? '*' : `id, session_id, agent, tournee_id, type_tournee, adresse, anomalie,
+      anomalie_type, anomalie_precision, commentaire, timestamp, lat, lng, accuracy, collecte_effectuee`;
     const anomaliesRes = await pool.query(`
-      SELECT * FROM validations WHERE session_id = $1 AND anomalie = true ORDER BY timestamp ASC
+      SELECT ${colonnes} FROM validations WHERE session_id = $1 AND anomalie = true ORDER BY timestamp ASC
     `, [sessionId]);
 
     const pdfHTML = generateAnomaliesPDF(session, anomaliesRes.rows, withPhotos);
@@ -457,11 +465,27 @@ app.get('/api/dashboard', async (req, res) => {
       return { ...s, totalAddresses };
     });
 
+    const versionRes = await pool.query(`
+      SELECT MAX(v.timestamp) as last_validation, MAX(s.end_time) as last_end
+      FROM sessions s
+      LEFT JOIN validations v ON v.session_id = s.id
+      WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1
+    `, [targetDate]);
+    const st = statsRes.rows[0];
+    const vr = versionRes.rows[0];
+
     res.json({
       sessions,
       anomalies: anomaliesRes.rows,
-      stats: statsRes.rows[0],
-      date: targetDate
+      stats: st,
+      date: targetDate,
+      version: {
+        session_count: st.total_sessions,
+        validation_count: st.total_validations,
+        anomaly_count: st.total_anomalies,
+        last_validation: vr.last_validation,
+        last_end: vr.last_end
+      }
     });
   } catch (err) {
     console.error('Erreur dashboard:', err);
@@ -584,7 +608,7 @@ app.get('/api/export/excel', async (req, res) => {
       // Filtre sur les sessions sélectionnées
       const placeholders = sessionIds.map((_, i) => `$${i + 1}`).join(',');
       anomaliesQuery = `
-        SELECT v.*, s.start_time as session_start, s.end_time as session_end
+        SELECT v.id, v.session_id, v.agent, v.tournee_id, v.type_tournee, v.adresse, v.anomalie, v.anomalie_type, v.anomalie_precision, v.commentaire, v.timestamp, v.collecte_effectuee, s.start_time as session_start, s.end_time as session_end
         FROM validations v
         JOIN sessions s ON s.id = v.session_id
         WHERE v.session_id IN (${placeholders}) AND v.anomalie = true
@@ -593,7 +617,7 @@ app.get('/api/export/excel', async (req, res) => {
       params = sessionIds;
     } else if (date) {
       anomaliesQuery = `
-        SELECT v.*, s.start_time as session_start, s.end_time as session_end
+        SELECT v.id, v.session_id, v.agent, v.tournee_id, v.type_tournee, v.adresse, v.anomalie, v.anomalie_type, v.anomalie_precision, v.commentaire, v.timestamp, v.collecte_effectuee, s.start_time as session_start, s.end_time as session_end
         FROM validations v
         JOIN sessions s ON s.id = v.session_id
         WHERE DATE(s.start_time AT TIME ZONE 'Europe/Paris') = $1 AND v.anomalie = true
@@ -602,7 +626,7 @@ app.get('/api/export/excel', async (req, res) => {
       params = [date];
     } else {
       anomaliesQuery = `
-        SELECT v.*, s.start_time as session_start, s.end_time as session_end
+        SELECT v.id, v.session_id, v.agent, v.tournee_id, v.type_tournee, v.adresse, v.anomalie, v.anomalie_type, v.anomalie_precision, v.commentaire, v.timestamp, v.collecte_effectuee, s.start_time as session_start, s.end_time as session_end
         FROM validations v
         JOIN sessions s ON s.id = v.session_id
         WHERE v.anomalie = true

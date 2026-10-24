@@ -530,8 +530,7 @@ async function loadDashboard() {
     renderAnomalies(dashData.anomalies);
     renderHistorique(dashData.sessions);
 
-    const v = await (await fetch('/api/dashboard/version'+(date?`?date=${date}`:''))).json();
-    lastVersionKey = versionKeyFrom(v);
+    if (dashData.version) lastVersionKey = versionKeyFrom(dashData.version);
   } catch(e) { console.error(e); }
 
   loadPdfReports();
