@@ -875,7 +875,7 @@ function onPhotoSelected(event) {
     const img = new Image();
     img.onload = function() {
       const canvas = document.createElement('canvas');
-      const maxSize = 1200;
+      const maxSize = 1024;
       let w = img.width, h = img.height;
       if (w > maxSize || h > maxSize) {
         if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
@@ -883,7 +883,7 @@ function onPhotoSelected(event) {
       }
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      currentPhotoBase64 = canvas.toDataURL('image/jpeg', 0.75);
+      currentPhotoBase64 = canvas.toDataURL('image/jpeg', 0.68);
       document.getElementById('photo-preview').src = currentPhotoBase64;
       document.getElementById('photo-preview-wrap').classList.add('visible');
       const btn = document.getElementById('photo-btn');
@@ -1013,14 +1013,22 @@ async function showFinish() {
       const info  = document.getElementById('pdf-auto-info');
 
       if (data.anomaliesCount > 0) {
-        // Téléchargement automatique du rapport
-        const url = `/api/export/anomalies-pdf/${session.id}?photos=true`;
+        // Téléchargement automatique du rapport : on utilise celui renvoyé par
+        // fin-tournee (pas de second appel au serveur, donc pas de relecture
+        // des photos dans la base). Repli sur l'ancienne URL si absent.
+        let url = `/api/export/anomalies-pdf/${session.id}?photos=true`;
+        let blobUrl = null;
+        if (data.html) {
+          blobUrl = URL.createObjectURL(new Blob([data.html], { type: 'text/html;charset=utf-8' }));
+          url = blobUrl;
+        }
         const a = document.createElement('a');
         a.href = url;
         a.download = data.filename || `anomalies_${session.tourneeId}.html`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
         card.classList.remove('no-anomaly');
         title.textContent = `📄 Rapport téléchargé — ${data.anomaliesCount} anomalie${data.anomaliesCount > 1 ? 's' : ''}`;
